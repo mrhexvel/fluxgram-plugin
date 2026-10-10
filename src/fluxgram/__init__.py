@@ -13,6 +13,7 @@ from .storage import (
     StorageQueueFullError,
     StorageQuotaExceededError,
     StorageResult,
+    StorageFileScope,
     StorageScope,
     StorageStatistics,
     StorageThreadError,
@@ -30,7 +31,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 1
+API_MINOR_VERSION = 2
 
 __all__ = [
     "Plugin",
@@ -47,6 +48,7 @@ __all__ = [
     "StorageLimits",
     "StorageStatistics",
     "StorageResult",
+    "StorageFileScope",
     "StorageTask",
     "StorageError",
     "StorageUnavailableError",

@@ -8,7 +8,7 @@ from ..events import BeforeSendEvent, MessageReceivedEvent
 from ..models import ChatInfo, ChatNotifications, NotificationOverride
 from ..plugin import Plugin
 from ..settings import SelectSetting, SliderSetting, SwitchSetting, TextSetting
-from ..storage import Storage, StorageMigration, StorageMigrationError
+from ..storage import Storage, StorageMigrationError, _migrate_plugin_storage
 from .storage import HarnessStorageBackend
 
 
@@ -472,7 +472,7 @@ class PluginHarness(Generic[PluginType]):
         migration_storage._bind_runtime(self._host, self.generation)
 
         try:
-            self._migrate_storage(plugin_class, migration_storage)
+            _migrate_plugin_storage(plugin_class, migration_storage)
         finally:
             migration_storage._close()
 
@@ -548,38 +548,6 @@ class PluginHarness(Generic[PluginType]):
         self._host.invalidate()
         self.generation += 1
         self.settings.clear_pending()
-
-    def _migrate_storage(
-            self,
-            plugin_class: type[PluginType],
-            storage: Storage,
-    ) -> None:
-        target = plugin_class.storage_schema_version
-
-        if type(target) is not int or target < 0:
-            raise StorageMigrationError(
-                "storage_schema_version must be a non-negative integer"
-            )
-
-        current = storage.statistics().schema_version
-
-        if target < current:
-            raise StorageMigrationError(
-                f"Storage schema {current} is newer than plugin schema {target}"
-            )
-
-        if target == current:
-            return
-
-        try:
-            with StorageMigration(storage, current, target) as migration:
-                plugin_class.migrate_storage(migration)
-        except StorageMigrationError:
-            raise
-        except BaseException as error:
-            raise StorageMigrationError(
-                f"Storage migration {current} -> {target} failed"
-            ) from error
 
     def disable(self) -> None:
         if self._closed:

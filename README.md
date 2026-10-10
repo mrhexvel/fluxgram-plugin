@@ -103,7 +103,7 @@ with PluginHarness(PluginEntry, storage_backend=backend) as restarted:
     assert restarted.plugin.storage.global_scope.get_int("launch_count") == 2
 ```
 
-Direct storage I/O is rejected on the UI thread. SDK 2.1 provides the Android KV/JSON backend. UI callbacks can submit bounded storage work and receive the result back on the UI thread:
+Direct storage I/O is rejected on the UI thread. Host SDK 2.1 provides the Android KV/JSON backend. UI callbacks can submit bounded storage work and receive the result back on the UI thread:
 
 ```python
 def on_message(self, event):
@@ -117,3 +117,12 @@ def on_stored(self, result):
 ```
 
 `submit` returns a `StorageTask`. Queued tasks are cancelled on unload, stale-generation completions are suppressed, and queue saturation is reported as `StorageQueueFullError` in the task result. Plugins which rely on the Android backend must require host SDK 2.1 or newer.
+
+Host SDK 2.2 adds private binary files to the same bounded storage service. Logical paths are validated relative names and never expose an Android filesystem path. Global and captured account-owner scopes are separate:
+
+```python
+self.storage.global_files.write_bytes("cache/state.bin", payload)
+payload = self.storage.account_files(account).read_bytes("state.bin")
+```
+
+File replacement is atomic. File operations are not part of KV transactions or schema migrations. Plugins which use private files must require host SDK 2.2 or newer.

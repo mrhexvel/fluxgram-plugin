@@ -55,6 +55,9 @@ class StorageLimits:
     max_entries: int = 4096
     max_value_bytes: int = 256 * 1024
     max_total_value_bytes: int = 4 * 1024 * 1024
+    max_files: int = 512
+    max_file_bytes: int = 8 * 1024 * 1024
+    max_total_file_bytes: int = 32 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,8 @@ class StorageStatistics:
     value_bytes: int
     schema_version: int
     limits: StorageLimits
+    file_count: int = 0
+    file_bytes: int = 0
 
 
 ResultType = TypeVar("ResultType")
@@ -190,10 +195,26 @@ class StoragePort(Protocol):
     def complete(self, callback) -> None:
         ...
 
+    def file_contains(self, scope: Any, path: str) -> bool:
+        ...
+
+    def file_read(self, scope: Any, path: str) -> bytes | None:
+        ...
+
+    def file_write(self, scope: Any, path: str, data: bytes) -> None:
+        ...
+
+    def file_delete(self, scope: Any, path: str) -> bool:
+        ...
+
+    def file_clear(self, scope: Any) -> None:
+        ...
+
 
 _MISSING = object()
 _DELETED = object()
 _KEY_PATTERN = re.compile(r"[a-z][a-z0-9_.-]{0,127}")
+_FILE_COMPONENT_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 
 
 def _validate_key(key: str) -> str:
@@ -205,6 +226,22 @@ def _validate_key(key: str) -> str:
         raise ValueError("Invalid storage key")
 
     return key
+
+
+def _validate_file_path(path: str) -> str:
+    if not isinstance(path, str) or not path or len(path.encode("utf-8")) > 240:
+        raise ValueError("Invalid storage file path")
+
+    components = path.split("/")
+
+    if (
+            len(components) > 16
+            or any(_FILE_COMPONENT_PATTERN.fullmatch(component) is None
+                   for component in components)
+    ):
+        raise ValueError("Invalid storage file path")
+
+    return path
 
 
 def _validate_int(value: int) -> int:
@@ -408,6 +445,38 @@ class StorageScope:
         self._storage._apply((operation,))
 
 
+class StorageFileScope:
+    def __init__(self, storage, scope: Any):
+        self._storage = storage
+        self._scope = scope
+
+    def contains(self, path: str) -> bool:
+        return self._storage._file_contains(self._scope, _validate_file_path(path))
+
+    def read_bytes(self, path: str) -> bytes:
+        path = _validate_file_path(path)
+        value = self._storage._file_read(self._scope, path)
+
+        if value is None:
+            raise KeyError(path)
+
+        return bytes(value)
+
+    def write_bytes(self, path: str, data: bytes) -> None:
+        path = _validate_file_path(path)
+
+        if not isinstance(data, bytes):
+            raise TypeError("Storage file data must be bytes")
+
+        self._storage._file_write(self._scope, path, bytes(data))
+
+    def delete(self, path: str) -> bool:
+        return self._storage._file_delete(self._scope, _validate_file_path(path))
+
+    def clear(self) -> None:
+        self._storage._file_clear(self._scope)
+
+
 class StorageTransaction:
     def __init__(self, storage):
         self._storage = storage
@@ -585,8 +654,15 @@ class Storage:
     def global_scope(self) -> StorageScope:
         return StorageScope(self, self._global_scope())
 
+    @property
+    def global_files(self) -> StorageFileScope:
+        return StorageFileScope(self, self._global_scope())
+
     def account(self, account: int) -> StorageScope:
         return StorageScope(self, self._account_scope(account))
+
+    def account_files(self, account: int) -> StorageFileScope:
+        return StorageFileScope(self, self._account_scope(account))
 
     def transaction(self) -> StorageTransaction:
         self._require_port()
@@ -678,6 +754,21 @@ class Storage:
     ) -> None:
         self._require_port().apply(operations, schema_version)
 
+    def _file_contains(self, scope: Any, path: str) -> bool:
+        return self._require_port().file_contains(scope, path)
+
+    def _file_read(self, scope: Any, path: str) -> bytes | None:
+        return self._require_port().file_read(scope, path)
+
+    def _file_write(self, scope: Any, path: str, data: bytes) -> None:
+        self._require_port().file_write(scope, path, data)
+
+    def _file_delete(self, scope: Any, path: str) -> bool:
+        return self._require_port().file_delete(scope, path)
+
+    def _file_clear(self, scope: Any) -> None:
+        self._require_port().file_clear(scope)
+
     def _begin_transaction(self, transaction: StorageTransaction) -> None:
         self._require_port()
 
@@ -706,3 +797,32 @@ class Storage:
             )
 
         return self._port
+
+
+def _migrate_plugin_storage(plugin_class: Any, storage: Storage) -> None:
+    target = plugin_class.storage_schema_version
+
+    if type(target) is not int or target < 0:
+        raise StorageMigrationError(
+            "storage_schema_version must be a non-negative integer"
+        )
+
+    current = storage.statistics().schema_version
+
+    if target < current:
+        raise StorageMigrationError(
+            f"Storage schema {current} is newer than plugin schema {target}"
+        )
+
+    if target == current:
+        return
+
+    try:
+        with StorageMigration(storage, current, target) as migration:
+            plugin_class.migrate_storage(migration)
+    except StorageMigrationError:
+        raise
+    except BaseException as error:
+        raise StorageMigrationError(
+            f"Storage migration {current} -> {target} failed"
+        ) from error

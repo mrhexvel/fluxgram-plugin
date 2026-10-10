@@ -150,6 +150,7 @@ class StorageTest(unittest.TestCase):
         harness = PluginHarness(EmptyPlugin, storage_backend=backend)
         first_owner = harness.plugin.storage.account(0)
         first_owner.set_string("token", "first")
+        harness.plugin.storage.account_files(0).write_bytes("owner.bin", b"first")
         backend.set_owner(0, 200)
 
         with self.assertRaises(StorageOwnerChangedError):
@@ -163,6 +164,9 @@ class StorageTest(unittest.TestCase):
 
         backend.clear_owner(0, 100)
         self.assertFalse(harness.plugin.storage.account(0).contains("token"))
+        self.assertFalse(
+            harness.plugin.storage.account_files(0).contains("owner.bin")
+        )
         harness.disable()
 
     def test_owner_change_rolls_back_transaction(self):
@@ -205,6 +209,83 @@ class StorageTest(unittest.TestCase):
         self.assertFalse(other.plugin.storage.global_scope.contains("value"))
         restarted.disable()
         other.disable()
+
+    def test_private_files_are_persistent_and_owner_scoped(self):
+        backend = HarnessStorageBackend(owners={0: 100})
+        first = PluginHarness(EmptyPlugin, storage_backend=backend)
+        global_files = first.plugin.storage.global_files
+        owner_files = first.plugin.storage.account_files(0)
+
+        global_files.write_bytes("cache/avatar.bin", b"global")
+        owner_files.write_bytes("state.bin", b"owner-100")
+        first.disable()
+
+        restarted = PluginHarness(EmptyPlugin, storage_backend=backend)
+        self.assertEqual(
+            restarted.plugin.storage.global_files.read_bytes("cache/avatar.bin"),
+            b"global",
+        )
+        self.assertEqual(
+            restarted.plugin.storage.account_files(0).read_bytes("state.bin"),
+            b"owner-100",
+        )
+
+        stale = restarted.plugin.storage.account_files(0)
+        backend.set_owner(0, 200)
+
+        with self.assertRaises(StorageOwnerChangedError):
+            stale.contains("state.bin")
+
+        self.assertFalse(
+            restarted.plugin.storage.account_files(0).contains("state.bin")
+        )
+        restarted.disable()
+
+    def test_private_file_paths_and_types_are_validated(self):
+        harness = PluginHarness(EmptyPlugin)
+        files = harness.plugin.storage.global_files
+
+        for path in ("", "/root", "root/", "a//b", ".", "..", "a/../b", "a\\b"):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                files.contains(path)
+
+        with self.assertRaises(TypeError):
+            files.write_bytes("value.bin", bytearray(b"value"))
+
+        with self.assertRaises(KeyError):
+            files.read_bytes("missing.bin")
+
+        harness.disable()
+
+    def test_private_file_quota_replace_and_clear(self):
+        backend = HarnessStorageBackend(limits=StorageLimits(
+            max_files=2,
+            max_file_bytes=5,
+            max_total_file_bytes=7,
+        ))
+        harness = PluginHarness(EmptyPlugin, storage_backend=backend)
+        storage = harness.plugin.storage
+        global_files = storage.global_files
+        account_files = storage.account_files(0)
+
+        global_files.write_bytes("first.bin", b"12345")
+        global_files.write_bytes("first.bin", b"12")
+        account_files.write_bytes("second.bin", b"12345")
+
+        with self.assertRaises(StorageQuotaExceededError):
+            global_files.write_bytes("third.bin", b"x")
+
+        with self.assertRaises(StorageQuotaExceededError):
+            global_files.write_bytes("first.bin", b"123456")
+
+        self.assertEqual(global_files.read_bytes("first.bin"), b"12")
+        statistics = storage.statistics()
+        self.assertEqual((statistics.file_count, statistics.file_bytes), (2, 7))
+
+        account_files.clear()
+        self.assertTrue(global_files.contains("first.bin"))
+        self.assertFalse(account_files.contains("second.bin"))
+        harness.disable()
 
     def test_clear_scope_and_all_are_independent(self):
         harness = PluginHarness(EmptyPlugin)

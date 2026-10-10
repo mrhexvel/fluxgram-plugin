@@ -25,6 +25,7 @@ class _Scope:
 @dataclass
 class _PluginData:
     values: dict[_Scope, dict[str, _StoredValue]] = field(default_factory=dict)
+    files: dict[_Scope, dict[str, bytes]] = field(default_factory=dict)
     schema_version: int = 0
 
 
@@ -73,6 +74,7 @@ class HarnessStorageBackend:
 
         for data in self._plugins.values():
             data.values.pop(scope, None)
+            data.files.pop(scope, None)
 
     def clear_plugin(self, plugin_id: str) -> None:
         self._plugins.pop(plugin_id, None)
@@ -213,7 +215,69 @@ class HarnessStorageSession:
             ),
             schema_version=self._data.schema_version,
             limits=self._limits,
+            file_count=sum(len(current) for current in self._data.files.values()),
+            file_bytes=sum(
+                len(value)
+                for current in self._data.files.values()
+                for value in current.values()
+            ),
         )
+
+    def file_contains(self, scope: _Scope, path: str) -> bool:
+        self._require_operation(scope)
+        return path in self._data.files.get(scope, {})
+
+    def file_read(self, scope: _Scope, path: str) -> bytes | None:
+        self._require_operation(scope)
+        value = self._data.files.get(scope, {}).get(path)
+        return None if value is None else bytes(value)
+
+    def file_write(self, scope: _Scope, path: str, data: bytes) -> None:
+        self._require_operation(scope)
+
+        if len(data) > self._limits.max_file_bytes:
+            raise StorageQuotaExceededError(
+                "Storage file exceeds the per-file limit"
+            )
+
+        files = {
+            current_scope: dict(current)
+            for current_scope, current in self._data.files.items()
+        }
+        files.setdefault(scope, {})[path] = bytes(data)
+        count = sum(len(current) for current in files.values())
+        size = sum(
+            len(value)
+            for current in files.values()
+            for value in current.values()
+        )
+
+        if count > self._limits.max_files:
+            raise StorageQuotaExceededError("Storage file count limit exceeded")
+
+        if size > self._limits.max_total_file_bytes:
+            raise StorageQuotaExceededError("Storage file size limit exceeded")
+
+        self._require_owner(scope)
+        self._data.files = files
+
+    def file_delete(self, scope: _Scope, path: str) -> bool:
+        self._require_operation(scope)
+        current = self._data.files.get(scope)
+
+        if current is None or path not in current:
+            return False
+
+        del current[path]
+
+        if not current:
+            self._data.files.pop(scope, None)
+
+        return True
+
+    def file_clear(self, scope: _Scope) -> None:
+        self._require_operation(scope)
+        self._data.files.pop(scope, None)
 
     def submit(self, callback) -> bool | None:
         if self.closed or not self._is_active():
