@@ -1,3 +1,4 @@
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -38,7 +39,12 @@ class HarnessStorageBackend:
         self._limits = limits or StorageLimits()
         self._plugins = {}
 
-    def session(self, plugin_id: str, is_ui_thread) -> "HarnessStorageSession":
+    def session(
+            self,
+            plugin_id: str,
+            is_ui_thread,
+            post_ui=lambda callback: callback(),
+    ) -> "HarnessStorageSession":
         data = self._plugins.setdefault(plugin_id, _PluginData())
 
         return HarnessStorageSession(
@@ -46,6 +52,7 @@ class HarnessStorageBackend:
             self._owners,
             self._limits,
             is_ui_thread,
+            post_ui,
         )
 
     def set_owner(self, account: int, owner: int | None) -> None:
@@ -78,12 +85,16 @@ class HarnessStorageSession:
             owners: dict[int, int],
             limits: StorageLimits,
             is_ui_thread,
+            post_ui,
     ):
         self._data = data
         self._owners = owners
         self._limits = limits
         self._is_ui_thread = is_ui_thread
+        self._post_ui = post_ui
         self._is_active = lambda: False
+        self._pending = deque()
+        self._running = 0
         self.closed = False
 
     def bind_runtime(self, host: Any, generation: int) -> None:
@@ -95,6 +106,7 @@ class HarnessStorageSession:
     def close(self) -> None:
         self.closed = True
         self._is_active = lambda: False
+        self._pending.clear()
 
     def global_scope(self) -> _Scope:
         self._require_available()
@@ -203,18 +215,50 @@ class HarnessStorageSession:
             limits=self._limits,
         )
 
+    def submit(self, callback) -> bool | None:
+        if self.closed or not self._is_active():
+            return None
+
+        if self._running + len(self._pending) >= 2:
+            return False
+
+        self._pending.append(callback)
+        return True
+
+    def complete(self, callback) -> None:
+        def run():
+            if not self.closed and self._is_active():
+                callback()
+
+        self._post_ui(run)
+
+    def drain(self) -> None:
+        self._require_active()
+
+        while self._pending:
+            callback = self._pending.popleft()
+            self._running += 1
+
+            try:
+                callback()
+            finally:
+                self._running -= 1
+
     def _require_operation(self, scope: _Scope) -> None:
         self._require_available()
         self._require_owner(scope)
 
     def _require_available(self) -> None:
-        if self.closed or not self._is_active():
-            raise StorageInactiveError("Plugin storage is inactive")
+        self._require_active()
 
         if self._is_ui_thread():
             raise StorageThreadError(
                 "Plugin storage cannot perform direct I/O on the UI thread"
             )
+
+    def _require_active(self) -> None:
+        if self.closed or not self._is_active():
+            raise StorageInactiveError("Plugin storage is inactive")
 
     def _require_owner(self, scope: _Scope) -> None:
         if scope.kind == "global":

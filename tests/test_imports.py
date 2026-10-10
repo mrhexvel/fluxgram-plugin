@@ -5,7 +5,7 @@ import fluxgram
 import fluxgram.models
 import fluxgram.testing
 import fluxgram.ui
-from fluxgram import Plugin, SwitchSetting
+from fluxgram import Plugin, StorageResult, StorageTask, SwitchSetting
 from fluxgram.storage import Storage, StorageMigration
 from fluxgram.testing import PluginHarness
 from fluxgram.ui import UI
@@ -14,7 +14,7 @@ from fluxgram.ui import UI
 class ImportsTest(unittest.TestCase):
     def test_public_api_imports_without_client_runtime(self):
         self.assertEqual(fluxgram.API_VERSION, 2)
-        self.assertEqual(fluxgram.API_MINOR_VERSION, 0)
+        self.assertEqual(fluxgram.API_MINOR_VERSION, 1)
         self.assertIs(fluxgram.ChatInfo, fluxgram.models.ChatInfo)
         self.assertEqual(
             set(fluxgram.ui.__all__),
@@ -25,6 +25,8 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(PluginHarness.__module__, "fluxgram.testing.harness")
         self.assertEqual(Storage.__module__, "fluxgram.storage")
         self.assertEqual(StorageMigration.__module__, "fluxgram.storage")
+        self.assertEqual(StorageResult.__module__, "fluxgram.storage")
+        self.assertEqual(StorageTask.__module__, "fluxgram.storage")
 
         with self.assertRaisesRegex(RuntimeError, "only be created by FluxGram"):
             Plugin("standalone.test")

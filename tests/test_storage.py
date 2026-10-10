@@ -2,14 +2,16 @@ import unittest
 
 from fluxgram import (
     Plugin,
+    StorageInactiveError,
     StorageMigrationError,
     StorageOwnerChangedError,
+    StorageQueueFullError,
     StorageQuotaExceededError,
     StorageThreadError,
     StorageTransactionError,
     StorageTypeError,
 )
-from fluxgram.storage import StorageLimits
+from fluxgram.storage import Storage, StorageLimits
 from fluxgram.testing import HarnessStorageBackend, PluginHarness
 
 
@@ -249,6 +251,110 @@ class StorageTest(unittest.TestCase):
             harness.run_ui(lambda: harness.plugin.storage.global_scope.contains("value"))
 
         harness.disable()
+
+    def test_submit_moves_storage_io_off_ui_and_completes_on_ui(self):
+        harness = PluginHarness(EmptyPlugin)
+        completions = []
+
+        task = harness.run_ui(lambda: harness.plugin.storage.submit(
+            lambda storage: storage.global_scope.set_int("count", 7) or "stored",
+            on_complete=lambda result: completions.append(
+                (result.unwrap(), harness._ui_thread.is_ui_thread())
+            ),
+        ))
+
+        self.assertFalse(task.done)
+        harness.drain_storage()
+        self.assertTrue(task.done)
+        self.assertEqual(task.result.unwrap(), "stored")
+        self.assertEqual(completions, [])
+        harness.drain_ui()
+        self.assertEqual(completions, [("stored", True)])
+        self.assertEqual(harness.plugin.storage.global_scope.get_int("count"), 7)
+        harness.disable()
+
+    def test_submit_captures_operation_error(self):
+        harness = PluginHarness(EmptyPlugin)
+
+        task = harness.plugin.storage.submit(
+            lambda storage: storage.global_scope.get_int("missing")
+        )
+        harness.drain_storage()
+
+        self.assertIsInstance(task.result.error, KeyError)
+
+        with self.assertRaises(KeyError):
+            task.result.unwrap()
+
+        harness.disable()
+
+    def test_submit_is_bounded_and_cancelled_on_unload(self):
+        harness = PluginHarness(EmptyPlugin)
+        first = harness.plugin.storage.submit(lambda storage: 1)
+        second = harness.plugin.storage.submit(lambda storage: 2)
+        rejected = harness.plugin.storage.submit(lambda storage: 3)
+
+        self.assertTrue(rejected.done)
+        self.assertIsInstance(rejected.result.error, StorageQueueFullError)
+
+        harness.disable()
+
+        self.assertTrue(first.cancelled)
+        self.assertTrue(second.cancelled)
+        self.assertTrue(first.done)
+        self.assertTrue(second.done)
+
+    def test_submit_counts_running_task_and_suppresses_stale_completion(self):
+        harness = PluginHarness(EmptyPlugin)
+        nested = []
+        completions = []
+
+        def operation(storage):
+            nested.append(storage.submit(lambda current: 2))
+            nested.append(storage.submit(lambda current: 3))
+            return 1
+
+        task = harness.plugin.storage.submit(
+            operation,
+            on_complete=lambda result: completions.append(result.unwrap()),
+        )
+        harness.drain_storage()
+
+        self.assertEqual(task.result.unwrap(), 1)
+        self.assertFalse(nested[0].result.error)
+        self.assertIsInstance(nested[1].result.error, StorageQueueFullError)
+
+        harness.invalidate_generation()
+        harness.drain_ui()
+        self.assertEqual(completions, [])
+
+        inactive = harness.plugin.storage.submit(lambda storage: None)
+        self.assertIsInstance(inactive.result.error, StorageInactiveError)
+        harness.disable()
+
+    def test_storage_close_retries_backend_failure(self):
+        class FailingPort:
+            def __init__(self):
+                self.calls = 0
+
+            def close(self):
+                self.calls += 1
+
+                if self.calls == 1:
+                    raise RuntimeError("close failed")
+
+        port = FailingPort()
+        storage = Storage(port)
+
+        with self.assertRaisesRegex(RuntimeError, "close failed"):
+            storage._close()
+
+        with self.assertRaises(StorageInactiveError):
+            storage.statistics()
+
+        storage._close()
+        storage._close()
+        self.assertEqual(port.calls, 2)
 
     def test_migration_runs_before_load_and_persists_version(self):
         backend = HarnessStorageBackend()

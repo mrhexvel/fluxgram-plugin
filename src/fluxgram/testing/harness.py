@@ -466,6 +466,7 @@ class PluginHarness(Generic[PluginType]):
         migration_session = self.storage_backend.session(
             plugin_id,
             self._ui_thread.is_ui_thread,
+            self._ui_thread.post,
         )
         migration_storage = Storage(migration_session)
         migration_storage._bind_runtime(self._host, self.generation)
@@ -478,6 +479,7 @@ class PluginHarness(Generic[PluginType]):
         self._storage_session = self.storage_backend.session(
             plugin_id,
             self._ui_thread.is_ui_thread,
+            self._ui_thread.post,
         )
 
         bindings = RuntimeBindings(
@@ -538,6 +540,9 @@ class PluginHarness(Generic[PluginType]):
 
     def drain_ui(self) -> None:
         self._ui_thread.drain()
+
+    def drain_storage(self) -> None:
+        self.run_worker(self._storage_session.drain)
 
     def invalidate_generation(self) -> None:
         self._host.invalidate()

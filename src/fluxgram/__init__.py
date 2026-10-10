@@ -10,12 +10,15 @@ from .storage import (
     StorageMigration,
     StorageMigrationError,
     StorageOwnerChangedError,
+    StorageQueueFullError,
     StorageQuotaExceededError,
+    StorageResult,
     StorageScope,
     StorageStatistics,
     StorageThreadError,
     StorageTransaction,
     StorageTransactionError,
+    StorageTask,
     StorageTypeError,
     StorageUnavailableError,
 )
@@ -27,7 +30,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 0
+API_MINOR_VERSION = 1
 
 __all__ = [
     "Plugin",
@@ -43,11 +46,14 @@ __all__ = [
     "StorageMigration",
     "StorageLimits",
     "StorageStatistics",
+    "StorageResult",
+    "StorageTask",
     "StorageError",
     "StorageUnavailableError",
     "StorageInactiveError",
     "StorageAccountUnavailableError",
     "StorageOwnerChangedError",
+    "StorageQueueFullError",
     "StorageThreadError",
     "StorageTypeError",
     "StorageQuotaExceededError",

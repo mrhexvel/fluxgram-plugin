@@ -103,4 +103,17 @@ with PluginHarness(PluginEntry, storage_backend=backend) as restarted:
     assert restarted.plugin.storage.global_scope.get_int("launch_count") == 2
 ```
 
-Direct storage I/O is rejected on the simulated UI thread. The Android storage adapter is versioned separately from this standalone contract; plugins must declare the host SDK minor which first provides it before relying on storage in the client.
+Direct storage I/O is rejected on the UI thread. SDK 2.1 provides the Android KV/JSON backend. UI callbacks can submit bounded storage work and receive the result back on the UI thread:
+
+```python
+def on_message(self, event):
+    self.storage.submit(
+        lambda storage: storage.account(event.account).set_int("last_message", event.message_id),
+        on_complete=self.on_stored,
+    )
+
+def on_stored(self, result):
+    result.unwrap()
+```
+
+`submit` returns a `StorageTask`. Queued tasks are cancelled on unload, stale-generation completions are suppressed, and queue saturation is reported as `StorageQueueFullError` in the task result. Plugins which rely on the Android backend must require host SDK 2.1 or newer.

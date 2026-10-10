@@ -2,7 +2,8 @@ import json
 import math
 import re
 from dataclasses import dataclass
-from typing import Any, Protocol
+from threading import Lock
+from typing import Any, Generic, Protocol, TypeVar
 
 
 class StorageError(RuntimeError):
@@ -41,6 +42,10 @@ class StorageTransactionError(StorageError):
     pass
 
 
+class StorageQueueFullError(StorageError):
+    pass
+
+
 class StorageMigrationError(StorageError):
     pass
 
@@ -58,6 +63,84 @@ class StorageStatistics:
     value_bytes: int
     schema_version: int
     limits: StorageLimits
+
+
+ResultType = TypeVar("ResultType")
+
+
+@dataclass(frozen=True)
+class StorageResult(Generic[ResultType]):
+    value: ResultType | None = None
+    error: BaseException | None = None
+
+    def unwrap(self) -> ResultType:
+        if self.error is not None:
+            raise self.error
+
+        return self.value
+
+
+class StorageTask(Generic[ResultType]):
+    def __init__(self):
+        self._lock = Lock()
+        self._started = False
+        self._done = False
+        self._cancelled = False
+        self._result = None
+
+    @property
+    def done(self) -> bool:
+        with self._lock:
+            return self._done
+
+    @property
+    def cancelled(self) -> bool:
+        with self._lock:
+            return self._cancelled
+
+    @property
+    def result(self) -> StorageResult[ResultType]:
+        with self._lock:
+            if self._cancelled:
+                raise RuntimeError("Storage task was cancelled")
+
+            if not self._done:
+                raise RuntimeError("Storage task has not completed")
+
+            return self._result
+
+    def cancel(self) -> bool:
+        with self._lock:
+            if self._done:
+                return False
+
+            self._cancelled = True
+            self._done = True
+
+            return True
+
+    def _start(self) -> bool:
+        with self._lock:
+            if self._cancelled or self._done:
+                return False
+
+            self._started = True
+            return True
+
+    def _finish(self, result: StorageResult[ResultType]) -> bool:
+        with self._lock:
+            self._done = True
+
+            if self._cancelled:
+                return False
+
+            self._result = result
+            return True
+
+    def _reject(self, error: BaseException) -> None:
+        with self._lock:
+            self._done = True
+            self._result = StorageResult(error=error)
 
 
 @dataclass(frozen=True)
@@ -99,6 +182,12 @@ class StoragePort(Protocol):
         ...
 
     def statistics(self) -> StorageStatistics:
+        ...
+
+    def submit(self, callback) -> bool | None:
+        ...
+
+    def complete(self, callback) -> None:
         ...
 
 
@@ -466,20 +555,31 @@ class Storage:
     def __init__(self, port: StoragePort | None):
         self._port = port
         self._closed = False
+        self._port_closed = False
         self._transaction = None
+        self._tasks = set()
 
     def _bind_runtime(self, host: Any, generation: int) -> None:
         if self._port is not None:
             self._port.bind_runtime(host, generation)
 
     def _close(self) -> None:
-        if self._closed:
+        if self._port_closed:
             return
 
         self._closed = True
 
-        if self._port is not None:
-            self._port.close()
+        for task in tuple(self._tasks):
+            task.cancel()
+
+        self._tasks.clear()
+
+        if self._port is None:
+            self._port_closed = True
+            return
+
+        self._port.close()
+        self._port_closed = True
 
     @property
     def global_scope(self) -> StorageScope:
@@ -498,6 +598,66 @@ class Storage:
     def clear_all(self) -> None:
         self._require_no_transaction()
         self._apply((_StorageOperation("clear_all", None),))
+
+    def submit(
+            self,
+            operation,
+            *,
+            on_complete=None,
+    ) -> StorageTask:
+        if not callable(operation):
+            raise TypeError("operation must be callable")
+
+        if on_complete is not None and not callable(on_complete):
+            raise TypeError("on_complete must be callable")
+
+        port = self._require_port()
+        task = StorageTask()
+        self._tasks.add(task)
+
+        def run():
+            if not task._start():
+                self._tasks.discard(task)
+                return
+
+            try:
+                result = StorageResult(value=operation(self))
+            except BaseException as error:
+                result = StorageResult(error=error)
+
+            deliver = task._finish(result)
+
+            if on_complete is None or not deliver:
+                self._tasks.discard(task)
+                return
+
+            def complete():
+                self._tasks.discard(task)
+
+                if not self._closed and not task.cancelled:
+                    on_complete(result)
+
+            port.complete(complete)
+
+        submitted = port.submit(run)
+
+        if not submitted:
+            error = (
+                StorageInactiveError("Plugin storage is inactive")
+                if submitted is None
+                else StorageQueueFullError("Plugin storage task queue is full")
+            )
+            task._reject(error)
+            self._tasks.discard(task)
+
+            if submitted is not None and on_complete is not None:
+                def complete_rejection():
+                    if not self._closed and not task.cancelled:
+                        on_complete(task.result)
+
+                port.complete(complete_rejection)
+
+        return task
 
     def _global_scope(self) -> Any:
         return self._require_port().global_scope()
