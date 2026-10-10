@@ -1,6 +1,6 @@
 import unittest
 
-from fluxgram import Plugin
+from fluxgram import Plugin, StorageUnavailableError
 from fluxgram._runtime import RuntimeBindings, runtime_scope
 
 
@@ -79,6 +79,15 @@ class RuntimeContractTest(unittest.TestCase):
         plugin = self.create_plugin()
         plugin.log("loaded")
         self.assertEqual(self.logs, [("test.runtime", "loaded")])
+
+    def test_storage_fails_closed_without_runtime_port(self):
+        plugin = self.create_plugin()
+        plugin._bind_runtime(object(), 1)
+
+        with self.assertRaises(StorageUnavailableError):
+            plugin.storage.global_scope.contains("value")
+
+        plugin._unload()
 
 
 if __name__ == "__main__":

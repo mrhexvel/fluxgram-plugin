@@ -2,9 +2,13 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from .models import ChatInfo
+
+
+if TYPE_CHECKING:
+    from .storage import StoragePort
 
 
 class Subscription(Protocol):
@@ -111,6 +115,7 @@ class RuntimeBindings:
     ui_services: UIServices
     call_ui: Callable[[Callable[[], Any]], Any]
     log: Callable[[str, str], None]
+    storage: "StoragePort | None" = None
 
 
 class RuntimeFactory(Protocol):

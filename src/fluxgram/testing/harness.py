@@ -8,6 +8,8 @@ from ..events import BeforeSendEvent, MessageReceivedEvent
 from ..models import ChatInfo, ChatNotifications, NotificationOverride
 from ..plugin import Plugin
 from ..settings import SelectSetting, SliderSetting, SwitchSetting, TextSetting
+from ..storage import Storage, StorageMigration, StorageMigrationError
+from .storage import HarnessStorageBackend
 
 
 PluginType = TypeVar("PluginType", bound=Plugin)
@@ -443,6 +445,7 @@ class PluginHarness(Generic[PluginType]):
             *,
             plugin_id: str = "test.plugin",
             settings: dict[str, Any] | None = None,
+            storage_backend: HarnessStorageBackend | None = None,
     ):
         if not isinstance(plugin_class, type) or not issubclass(plugin_class, Plugin):
             raise TypeError("plugin_class must inherit from fluxgram.Plugin")
@@ -455,9 +458,27 @@ class PluginHarness(Generic[PluginType]):
         self._events = HarnessEvents(self._ui_thread)
         self.client = HarnessClient(self._ui_thread)
         self._ui_services = _UIServices(self.ui)
+        self.storage_backend = storage_backend or HarnessStorageBackend()
         self._values = dict(settings or {})
         self._host = _Host(self.generation, self._values)
         self._closed = False
+
+        migration_session = self.storage_backend.session(
+            plugin_id,
+            self._ui_thread.is_ui_thread,
+        )
+        migration_storage = Storage(migration_session)
+        migration_storage._bind_runtime(self._host, self.generation)
+
+        try:
+            self._migrate_storage(plugin_class, migration_storage)
+        finally:
+            migration_storage._close()
+
+        self._storage_session = self.storage_backend.session(
+            plugin_id,
+            self._ui_thread.is_ui_thread,
+        )
 
         bindings = RuntimeBindings(
             events=self._events,
@@ -466,21 +487,24 @@ class PluginHarness(Generic[PluginType]):
             ui_services=self._ui_services,
             call_ui=self._ui_thread.call,
             log=lambda current_id, message: self.logs.append((current_id, message)),
+            storage=self._storage_session,
         )
 
-        with runtime_scope(lambda current_id: bindings):
-            self.plugin = plugin_class(plugin_id)
-
-        self.settings = HarnessSettings(self, self._values)
-        self.plugin._bind_runtime(self._host, self.generation)
-
         try:
+            with runtime_scope(lambda current_id: bindings):
+                self.plugin = plugin_class(plugin_id)
+
+            self.settings = HarnessSettings(self, self._values)
+            self.plugin._bind_runtime(self._host, self.generation)
             self.run_worker(self.plugin.on_load)
         except BaseException as error:
             self._host.invalidate()
 
             try:
-                self.run_worker(self.plugin._unload)
+                if hasattr(self, "plugin"):
+                    self.run_worker(self.plugin._unload)
+                else:
+                    self._storage_session.close()
             except BaseException as cleanup_error:
                 error.add_note(f"Plugin cleanup also failed: {cleanup_error!r}")
 
@@ -519,6 +543,38 @@ class PluginHarness(Generic[PluginType]):
         self._host.invalidate()
         self.generation += 1
         self.settings.clear_pending()
+
+    def _migrate_storage(
+            self,
+            plugin_class: type[PluginType],
+            storage: Storage,
+    ) -> None:
+        target = plugin_class.storage_schema_version
+
+        if type(target) is not int or target < 0:
+            raise StorageMigrationError(
+                "storage_schema_version must be a non-negative integer"
+            )
+
+        current = storage.statistics().schema_version
+
+        if target < current:
+            raise StorageMigrationError(
+                f"Storage schema {current} is newer than plugin schema {target}"
+            )
+
+        if target == current:
+            return
+
+        try:
+            with StorageMigration(storage, current, target) as migration:
+                plugin_class.migrate_storage(migration)
+        except StorageMigrationError:
+            raise
+        except BaseException as error:
+            raise StorageMigrationError(
+                f"Storage migration {current} -> {target} failed"
+            ) from error
 
     def disable(self) -> None:
         if self._closed:
@@ -564,6 +620,9 @@ class PluginHarness(Generic[PluginType]):
 
         if self.plugin.ui._cleanup_callbacks:
             failures.append("UI cleanup callbacks remain registered")
+
+        if not self._storage_session.closed:
+            failures.append("storage session remains active")
 
         if failures:
             raise AssertionError("Plugin runtime is not clean: " + ", ".join(failures))

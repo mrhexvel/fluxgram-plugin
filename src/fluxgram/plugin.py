@@ -3,6 +3,7 @@ from enum import Enum, auto
 from .events import BeforeSendEvent
 from ._runtime import create_runtime
 from .settings import Settings
+from .storage import Storage, StorageMigration
 from .ui import UI
 
 
@@ -15,6 +16,7 @@ class _PluginState(Enum):
 
 class Plugin:
     settings_schema = ()
+    storage_schema_version = 0
 
     def __init__(self, plugin_id: str):
         runtime = create_runtime(plugin_id)
@@ -25,6 +27,7 @@ class Plugin:
         self.settings = Settings(self.settings_schema)
         self.events = runtime.events
         self.client = runtime.client
+        self.storage = Storage(runtime.storage)
         self.ui = UI(runtime.ui_thread, runtime.ui_services)
         self._cleanup_done = set()
         self._state = _PluginState.INITIALIZED
@@ -35,6 +38,7 @@ class Plugin:
 
         self.settings._bind_runtime(host, generation)
         self.client._bind_runtime(host, generation)
+        self.storage._bind_runtime(host, generation)
         self.ui._bind_runtime(host, generation)
         self.events.bind_runtime(host, generation)
         self._state = _PluginState.ACTIVE
@@ -48,6 +52,7 @@ class Plugin:
             ("ui", lambda: self._call_ui(self.ui._close)),
             ("client", self.client._close),
             ("events", lambda: self._call_ui(self.events.close)),
+            ("storage", self.storage._close),
             ("on_unload", self.on_unload),
         )
         errors = []
@@ -82,6 +87,10 @@ class Plugin:
         pass
 
     def on_unload(self) -> None:
+        pass
+
+    @classmethod
+    def migrate_storage(cls, migration: StorageMigration) -> None:
         pass
 
     def before_send(self, event: BeforeSendEvent) -> None:

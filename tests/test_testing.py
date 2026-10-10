@@ -220,6 +220,9 @@ class TestingTest(unittest.TestCase):
                 dialog_id=1,
             ))
 
+        with self.assertRaisesRegex(RuntimeError, "inactive"):
+            harness.plugin.storage.global_scope.contains("value")
+
         harness.disable()
         harness.assert_clean()
 

@@ -18,6 +18,7 @@ from .harness import (
     NotificationCall,
     PluginHarness,
 )
+from .storage import HarnessStorageBackend, HarnessStorageSession
 
 
 __all__ = [
@@ -29,6 +30,8 @@ __all__ = [
     "HarnessEvents",
     "HarnessSettings",
     "HarnessUI",
+    "HarnessStorageBackend",
+    "HarnessStorageSession",
     "NavigationCall",
     "NotificationCall",
     "before_send",

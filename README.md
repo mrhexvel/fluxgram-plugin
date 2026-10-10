@@ -70,3 +70,37 @@ def test_message():
 ```
 
 The harness also records navigation and notification calls, provides a fake chat registry, dispatches setting changes, enforces UI-thread access, simulates stale runtime generations, and verifies cleanup after unload.
+
+## Testing storage migrations
+
+The test runtime includes a persistent namespaced storage backend. It supports typed global and account-owner values, JSON, atomic transactions, quotas, schema migrations, rollback, and owner-change checks.
+
+```python
+from fluxgram import Plugin
+from fluxgram.testing import HarnessStorageBackend, PluginHarness
+
+
+class PluginEntry(Plugin):
+    storage_schema_version = 1
+
+    @classmethod
+    def migrate_storage(cls, migration):
+        if migration.from_version < 1:
+            migration.global_scope.set_int("launch_count", 0)
+
+    def on_load(self):
+        with self.storage.transaction() as transaction:
+            current = transaction.global_scope.get_int("launch_count")
+            transaction.global_scope.set_int("launch_count", current + 1)
+
+
+backend = HarnessStorageBackend(owners={0: 12345})
+
+with PluginHarness(PluginEntry, storage_backend=backend) as first:
+    assert first.plugin.storage.global_scope.get_int("launch_count") == 1
+
+with PluginHarness(PluginEntry, storage_backend=backend) as restarted:
+    assert restarted.plugin.storage.global_scope.get_int("launch_count") == 2
+```
+
+Direct storage I/O is rejected on the simulated UI thread. The Android storage adapter is versioned separately from this standalone contract; plugins must declare the host SDK minor which first provides it before relying on storage in the client.
