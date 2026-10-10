@@ -1,0 +1,33 @@
+import sys
+import unittest
+
+import fluxgram
+import fluxgram.models
+import fluxgram.ui
+from fluxgram import SwitchSetting
+from fluxgram.ui import UI
+
+
+class ImportsTest(unittest.TestCase):
+    def test_public_api_imports_without_client_runtime(self):
+        self.assertEqual(fluxgram.API_VERSION, 2)
+        self.assertEqual(fluxgram.API_MINOR_VERSION, 0)
+        self.assertIs(fluxgram.ChatInfo, fluxgram.models.ChatInfo)
+        self.assertEqual(
+            set(fluxgram.ui.__all__),
+            {"UI", "Bulletins", "Navigation", "Notifications"},
+        )
+        self.assertFalse(SwitchSetting("enabled", "Enabled").default)
+        self.assertFalse(UI()._active())
+
+        forbidden = ("android", "java", "org.telegram", "fluxgram_runtime")
+
+        self.assertFalse(any(
+            name == prefix or name.startswith(prefix + ".")
+            for name in sys.modules
+            for prefix in forbidden
+        ))
+
+
+if __name__ == "__main__":
+    unittest.main()
