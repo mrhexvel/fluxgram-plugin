@@ -1,0 +1,65 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub release tag to publish
+        required: true
+        default: v2.0.0
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish release assets to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/fluxgram-sdk
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Select release tag
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${RELEASE_TAG:-$INPUT_TAG}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Download release distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          mkdir dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "*.whl" \
+            --pattern "*.tar.gz" \
+            --dir dist
+
+      - name: Verify release distributions
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          test -f "dist/fluxgram_sdk-$version-py3-none-any.whl"
+          test -f "dist/fluxgram_sdk-$version.tar.gz"
+          test "$(find dist -type f | wc -l | tr -d ' ')" = "2"
+
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
