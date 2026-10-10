@@ -1,32 +1,49 @@
+from enum import Enum, auto
+
 from .events import BeforeSendEvent
+from ._runtime import create_runtime
 from .settings import Settings
+from .ui import UI
+
+
+class _PluginState(Enum):
+    INITIALIZED = auto()
+    ACTIVE = auto()
+    CLOSING = auto()
+    CLOSED = auto()
 
 
 class Plugin:
     settings_schema = ()
 
     def __init__(self, plugin_id: str):
-        from fluxgram_runtime._event_bus import EventBus
-        from fluxgram_runtime._ui_thread import call_ui
-        from fluxgram_runtime.client import Client
-
-        from .ui import UI
+        runtime = create_runtime(plugin_id)
 
         self._plugin_id = plugin_id
-        self._call_ui = call_ui
+        self._call_ui = runtime.call_ui
+        self._log = runtime.log
         self.settings = Settings(self.settings_schema)
-        self.events = EventBus(plugin_id)
-        self.client = Client()
-        self.ui = UI()
+        self.events = runtime.events
+        self.client = runtime.client
+        self.ui = UI(runtime.ui_thread, runtime.ui_services)
         self._cleanup_done = set()
+        self._state = _PluginState.INITIALIZED
 
-    def _bind_runtime(self, host, generation):
+    def _bind_runtime(self, host, generation: int) -> None:
+        if self._state is not _PluginState.INITIALIZED:
+            raise RuntimeError("Plugin runtime is already bound or closed")
+
         self.settings._bind_runtime(host, generation)
         self.client._bind_runtime(host, generation)
         self.ui._bind_runtime(host, generation)
         self.events.bind_runtime(host, generation)
+        self._state = _PluginState.ACTIVE
 
-    def _unload(self):
+    def _unload(self) -> None:
+        if self._state is _PluginState.CLOSED:
+            return
+
+        self._state = _PluginState.CLOSING
         steps = (
             ("ui", lambda: self._call_ui(self.ui._close)),
             ("client", self.client._close),
@@ -49,26 +66,23 @@ class Plugin:
             names = ", ".join(name for name, _ in errors)
             raise RuntimeError(f"Plugin cleanup failed: {names}") from errors[0][1]
 
+        self._state = _PluginState.CLOSED
+
     @property
     def id(self) -> str:
         return self._plugin_id
 
-    def log(self, message: str):
-        from android.util import Log
+    def log(self, message: str) -> None:
+        self._log(self.id, message)
 
-        Log.i(
-            "FluxGramPython",
-            f"[{self.id}] {message}",
-        )
-
-    def on_setting_changed(self, key: str, value: bool | str | int):
+    def on_setting_changed(self, key: str, value: bool | str | int) -> None:
         pass
 
-    def on_load(self):
+    def on_load(self) -> None:
         pass
 
-    def on_unload(self):
+    def on_unload(self) -> None:
         pass
 
-    def before_send(self, event: BeforeSendEvent):
+    def before_send(self, event: BeforeSendEvent) -> None:
         pass

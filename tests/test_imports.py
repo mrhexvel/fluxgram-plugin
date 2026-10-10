@@ -4,7 +4,7 @@ import unittest
 import fluxgram
 import fluxgram.models
 import fluxgram.ui
-from fluxgram import SwitchSetting
+from fluxgram import Plugin, SwitchSetting
 from fluxgram.ui import UI
 
 
@@ -19,6 +19,9 @@ class ImportsTest(unittest.TestCase):
         )
         self.assertFalse(SwitchSetting("enabled", "Enabled").default)
         self.assertFalse(UI()._active())
+
+        with self.assertRaisesRegex(RuntimeError, "only be created by FluxGram"):
+            Plugin("standalone.test")
 
         forbidden = ("android", "java", "org.telegram", "fluxgram_runtime")
 
