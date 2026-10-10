@@ -3,8 +3,10 @@ import unittest
 
 import fluxgram
 import fluxgram.models
+import fluxgram.testing
 import fluxgram.ui
 from fluxgram import Plugin, SwitchSetting
+from fluxgram.testing import PluginHarness
 from fluxgram.ui import UI
 
 
@@ -19,6 +21,7 @@ class ImportsTest(unittest.TestCase):
         )
         self.assertFalse(SwitchSetting("enabled", "Enabled").default)
         self.assertFalse(UI()._active())
+        self.assertEqual(PluginHarness.__module__, "fluxgram.testing.harness")
 
         with self.assertRaisesRegex(RuntimeError, "only be created by FluxGram"):
             Plugin("standalone.test")

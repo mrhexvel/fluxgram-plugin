@@ -43,3 +43,30 @@ uv build --offline
 ```
 
 The Android client pins this repository as a submodule and runs additional integration tests against `fluxgram_runtime` and the Java host.
+
+## Testing plugins
+
+`fluxgram.testing` provides a deterministic runtime for testing plugins on regular CPython. It uses the same public models and lifecycle contract as the client without importing Android, Java, Telegram, or `fluxgram_runtime`.
+
+```python
+from fluxgram import MessageReceivedEvent, Plugin
+from fluxgram.testing import PluginHarness, message_received
+from fluxgram.ui import Bulletins
+
+
+class PluginEntry(Plugin):
+    def on_load(self):
+        self.bulletins = Bulletins(self.ui)
+        self.events.subscribe("message.received", self.on_message)
+
+    def on_message(self, event: MessageReceivedEvent):
+        self.bulletins.show("Received", event.text)
+
+
+def test_message():
+    with PluginHarness(PluginEntry) as harness:
+        harness.emit("message.received", message_received())
+        harness.assert_bulletin_shown("Test message", title="Received")
+```
+
+The harness also records navigation and notification calls, provides a fake chat registry, dispatches setting changes, enforces UI-thread access, simulates stale runtime generations, and verifies cleanup after unload.
