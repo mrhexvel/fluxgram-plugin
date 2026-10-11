@@ -14,6 +14,8 @@ The public package contains plugin-facing models, facades, settings, and UI cont
 
 Typed observational events run sequentially on the plugin executor. They carry immutable account, owner, and runtime-generation context, use the host's bounded event queue, and are automatically unsubscribed during unload.
 
+`message_edited` reports the new server-confirmed snapshot of an ordinary cloud message. It includes incoming and outgoing edits, but not scheduled, quick-reply, ephemeral, secret, or service messages. It does not provide the previous version or a text diff, and duplicate delivery remains possible after Telegram update replay.
+
 ```python
 class PluginEntry(Plugin):
     def on_load(self):

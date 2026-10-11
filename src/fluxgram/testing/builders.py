@@ -1,6 +1,7 @@
 from ..events import (
     BeforeSendEvent,
     EventContext,
+    MessageEditedEvent,
     MessageReceivedEvent,
     PluginSettingChangedEvent,
 )
@@ -96,6 +97,35 @@ def message_received(
         account=account,
         chat=current_chat,
         message=current_message,
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
+    )
+
+
+def message_edited(
+        *,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        edit_date: int = 1,
+        context: EventContext | None = None,
+        chat_info: ChatInfo | None = None,
+        message_info: MessageInfo | None = None,
+) -> MessageEditedEvent:
+    current_message = message_info or message()
+    current_chat = chat_info or chat(dialog_id=current_message.dialog_id)
+
+    if current_chat.id != current_message.dialog_id:
+        raise ValueError("Chat and message dialog IDs must match")
+
+    return MessageEditedEvent(
+        account=account,
+        chat=current_chat,
+        message=current_message,
+        edit_date=edit_date,
         context=context or event_context(
             account=account,
             owner_id=owner_id,

@@ -6,12 +6,18 @@ from fluxgram import (
     EventChannel,
     Events,
     ExecutionContext,
+    MessageEditedEvent,
     MessageReceivedEvent,
     Plugin,
     PluginSettingChangedEvent,
     SwitchSetting,
 )
-from fluxgram.testing import PluginHarness, message_received, plugin_setting_changed
+from fluxgram.testing import (
+    PluginHarness,
+    message_edited,
+    message_received,
+    plugin_setting_changed,
+)
 
 
 class EventPlugin(Plugin):
@@ -49,6 +55,17 @@ class MessagePlugin(Plugin):
 
     def on_load(self):
         self.subscription = self.events.message_received.subscribe(
+            self.calls.append
+        )
+
+
+class MessageEditedPlugin(Plugin):
+    def __init__(self, plugin_id):
+        super().__init__(plugin_id)
+        self.calls = []
+
+    def on_load(self):
+        self.subscription = self.events.message_edited.subscribe(
             self.calls.append
         )
 
@@ -161,6 +178,60 @@ class EventsTest(unittest.TestCase):
         second.unsubscribe()
         self.assertFalse(harness._host.message_received_active)
         harness.disable()
+
+    def test_message_edited_event_is_typed_and_does_not_dedupe_identity(self):
+        harness = PluginHarness(MessageEditedPlugin, account=2, owner_id=99)
+        first = message_edited(account=2, owner_id=99, edit_date=10)
+        second = message_edited(account=2, owner_id=99, edit_date=10)
+
+        self.assertTrue(harness._host.message_edited_active)
+        self.assertFalse(harness._host.message_received_active)
+
+        harness.emit_event(first)
+        harness.emit_event(second)
+
+        self.assertEqual(harness.plugin.calls, [first, second])
+        self.assertEqual(first.context, EventContext(2, 99, 1))
+
+        with self.assertRaises(FrozenInstanceError):
+            first.edit_date = 11
+
+        harness.replace_owner(2, 100)
+        harness.emit_event(message_edited(account=2, owner_id=99, edit_date=11))
+        self.assertEqual(harness.plugin.calls, [first, second])
+        harness.disable()
+        self.assertFalse(harness._host.message_edited_active)
+
+    def test_message_edited_activation_tracks_its_own_subscriptions(self):
+        harness = PluginHarness(EventPlugin)
+        received = harness.plugin.events.message_received.subscribe(lambda event: None)
+        first = harness.plugin.events.message_edited.subscribe(lambda event: None)
+        second = harness.plugin.events.message_edited.subscribe(lambda event: None)
+
+        self.assertTrue(harness._host.message_received_active)
+        self.assertTrue(harness._host.message_edited_active)
+        first.unsubscribe()
+        self.assertTrue(harness._host.message_edited_active)
+        second.unsubscribe()
+        self.assertFalse(harness._host.message_edited_active)
+        self.assertTrue(harness._host.message_received_active)
+        received.unsubscribe()
+        harness.disable()
+
+    def test_message_edited_requires_valid_snapshot(self):
+        event = message_edited()
+
+        with self.assertRaises(ValueError):
+            MessageEditedEvent(
+                account=1,
+                chat=event.chat,
+                message=event.message,
+                edit_date=1,
+                context=EventContext(0, 1, 1),
+            )
+
+        with self.assertRaises(ValueError):
+            message_edited(edit_date=0)
 
     def test_typed_message_requires_matching_context(self):
         event = message_received()
