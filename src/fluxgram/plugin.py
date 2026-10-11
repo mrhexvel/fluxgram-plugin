@@ -1,6 +1,6 @@
 from enum import Enum, auto
 
-from .events import BeforeSendEvent
+from .events import BeforeSendEvent, Events
 from ._runtime import create_runtime
 from .settings import Settings
 from .storage import Storage, StorageMigration
@@ -26,7 +26,12 @@ class Plugin:
         self._call_ui = runtime.call_ui
         self._log = runtime.log
         self.settings = Settings(self.settings_schema)
-        self.events = runtime.events
+        self.events = Events(runtime.events)
+        self.events._set_error_handler(
+            lambda name, error: self.log(
+                f"{name} callback failed: {type(error).__name__}: {error}"
+            )
+        )
         self.client = runtime.client
         self.storage = Storage(runtime.storage)
         self.tasks = Tasks(runtime.tasks)

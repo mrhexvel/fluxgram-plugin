@@ -4,34 +4,13 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
+from .events import LegacyEventsPort
 from .models import ChatInfo
 
 
 if TYPE_CHECKING:
     from .storage import StoragePort
     from .tasks import TasksPort
-
-
-class Subscription(Protocol):
-    def unsubscribe(self) -> None:
-        ...
-
-
-class Events(Protocol):
-    def bind_runtime(self, host: Any, generation: int) -> None:
-        ...
-
-    def subscribe(
-        self,
-        name: str,
-        callback: Callable[[Any], Any],
-        *,
-        thread: str = "ui",
-    ) -> Subscription:
-        ...
-
-    def close(self) -> None:
-        ...
 
 
 class Chats(Protocol):
@@ -110,7 +89,7 @@ class UIServices(Protocol):
 
 @dataclass(frozen=True)
 class RuntimeBindings:
-    events: Events
+    events: LegacyEventsPort
     client: Client
     ui_thread: UIThread
     ui_services: UIServices

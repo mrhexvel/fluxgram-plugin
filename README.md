@@ -144,3 +144,18 @@ self.tasks.coalesce("refresh", lambda token: refresh_latest_state())
 ```
 
 Periodic tasks use fixed delay, pause while the application is in the background, and do not catch up missed intervals. Cancellation cannot stop Python code which has already started, but it suppresses its completion and future periodic runs. Plugins which use managed tasks must require host SDK 2.3 or newer.
+
+## Typed events
+
+Host SDK 2.4 introduces immutable typed channels which run callbacks on the bounded plugin executor. Subscriptions are automatically removed during unload:
+
+```python
+from fluxgram import ExecutionContext
+
+self.events.plugin_setting_changed.subscribe(
+    lambda event: self.log(f"{event.key}={event.value}"),
+    context=ExecutionContext.PLUGIN,
+)
+```
+
+`PluginSettingChangedEvent` includes the account, owner and runtime generation captured when the setting changed. Callback return values are ignored, and one failing subscriber does not prevent delivery to the others. Plugins which use typed events must require host SDK 2.4 or newer.

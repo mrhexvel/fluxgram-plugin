@@ -1,4 +1,9 @@
-from ..events import BeforeSendEvent, MessageReceivedEvent
+from ..events import (
+    BeforeSendEvent,
+    EventContext,
+    MessageReceivedEvent,
+    PluginSettingChangedEvent,
+)
 from ..models import (
     ChatInfo,
     ChatNotifications,
@@ -101,4 +106,30 @@ def before_send(
         account=account,
         text_length=text_length,
         schedule_date=schedule_date,
+    )
+
+
+def event_context(
+        *,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+) -> EventContext:
+    return EventContext(
+        account=account,
+        owner_id=owner_id,
+        generation=generation,
+    )
+
+
+def plugin_setting_changed(
+        key: str,
+        value: bool | str | int,
+        *,
+        context: EventContext | None = None,
+) -> PluginSettingChangedEvent:
+    return PluginSettingChangedEvent(
+        context=context or event_context(),
+        key=key,
+        value=value,
     )

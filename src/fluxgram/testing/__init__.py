@@ -2,9 +2,11 @@ from .builders import (
     before_send,
     chat,
     chat_notifications,
+    event_context,
     message,
     message_received,
     notification_override,
+    plugin_setting_changed,
 )
 from .harness import (
     BulletinCall,
@@ -40,7 +42,9 @@ __all__ = [
     "before_send",
     "chat",
     "chat_notifications",
+    "event_context",
     "message",
     "message_received",
     "notification_override",
+    "plugin_setting_changed",
 ]

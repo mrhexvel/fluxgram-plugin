@@ -1,6 +1,15 @@
 from .plugin import Plugin
 from .settings import SwitchSetting, SelectSetting, SliderSetting, TextSetting
-from .events import BeforeSendEvent, MessageReceivedEvent
+from .events import (
+    BeforeSendEvent,
+    EventChannel,
+    EventContext,
+    EventSubscription,
+    Events,
+    ExecutionContext,
+    MessageReceivedEvent,
+    PluginSettingChangedEvent,
+)
 from .storage import (
     Storage,
     StorageAccountUnavailableError,
@@ -42,7 +51,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 3
+API_MINOR_VERSION = 4
 
 __all__ = [
     "Plugin",
@@ -52,6 +61,12 @@ __all__ = [
     "TextSetting",
     "BeforeSendEvent",
     "MessageReceivedEvent",
+    "Events",
+    "EventChannel",
+    "EventContext",
+    "EventSubscription",
+    "ExecutionContext",
+    "PluginSettingChangedEvent",
     "Storage",
     "StorageScope",
     "StorageTransaction",

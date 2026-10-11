@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from .._runtime import RuntimeBindings, runtime_scope
-from ..events import BeforeSendEvent, MessageReceivedEvent
+from ..events import (
+    BeforeSendEvent,
+    EventContext,
+    MessageReceivedEvent,
+    PluginSettingChangedEvent,
+)
 from ..models import ChatInfo, ChatNotifications, NotificationOverride
 from ..plugin import Plugin
 from ..settings import SelectSetting, SliderSetting, SwitchSetting, TextSetting
@@ -384,7 +389,14 @@ class HarnessSettings:
 
         self._validate(item, value)
         self._values[key] = value
-        self._pending[key] = value
+        self._pending[key] = (
+            value,
+            EventContext(
+                account=self._harness.account,
+                owner_id=self._harness.owner_id,
+                generation=self._harness.generation,
+            ),
+        )
 
         if dispatch:
             self.flush()
@@ -397,18 +409,31 @@ class HarnessSettings:
 
     def flush(self) -> None:
         while self._pending:
-            key, value = self._pending.popitem(last=False)
+            key, pending = self._pending.popitem(last=False)
+            value, context = pending
 
             if not self._harness.active:
                 continue
 
+            if self._harness.owner_for(context.account) != context.owner_id:
+                continue
+
             self._harness.run_worker(
-                lambda: self._harness.plugin.settings._dispatch_changed(
-                    self._harness.plugin,
-                    key,
-                    value,
-                )
+                lambda: self._dispatch(key, value, context)
             )
+
+    def _dispatch(self, key, value, context) -> None:
+        event = PluginSettingChangedEvent(
+            context=context,
+            key=key,
+            value=value,
+        )
+        self._harness.plugin.events._dispatch(event)
+        self._harness.plugin.settings._dispatch_changed(
+            self._harness.plugin,
+            key,
+            value,
+        )
 
     def clear_pending(self) -> None:
         self._pending.clear()
@@ -447,11 +472,16 @@ class PluginHarness(Generic[PluginType]):
             plugin_id: str = "test.plugin",
             settings: dict[str, Any] | None = None,
             storage_backend: HarnessStorageBackend | None = None,
+            account: int = 0,
+            owner_id: int = 1,
     ):
         if not isinstance(plugin_class, type) or not issubclass(plugin_class, Plugin):
             raise TypeError("plugin_class must inherit from fluxgram.Plugin")
 
         self.plugin_id = plugin_id
+        self.account = account
+        self.owner_id = owner_id
+        self._owners = {account: owner_id}
         self.generation = 1
         self.logs = []
         self.ui = HarnessUI()
@@ -526,6 +556,35 @@ class PluginHarness(Generic[PluginType]):
     def emit(self, name: str, event: MessageReceivedEvent) -> tuple[Any, ...]:
         return self._events.emit(name, event)
 
+    def emit_event(self, event) -> None:
+        self.run_worker(lambda: self.plugin.events._dispatch(event))
+
+    def owner_for(self, account: int) -> int | None:
+        return self._owners.get(account)
+
+    def set_active_account(self, account: int, owner_id: int) -> None:
+        if type(account) is not int or account < 0:
+            raise ValueError("account must be a non-negative integer")
+
+        if type(owner_id) is not int or owner_id < 0:
+            raise ValueError("owner_id must be a non-negative integer")
+
+        self.account = account
+        self.owner_id = owner_id
+        self._owners[account] = owner_id
+
+    def replace_owner(self, account: int, owner_id: int) -> None:
+        if account not in self._owners:
+            raise ValueError("account is not registered")
+
+        if type(owner_id) is not int or owner_id < 0:
+            raise ValueError("owner_id must be a non-negative integer")
+
+        self._owners[account] = owner_id
+
+        if self.account == account:
+            self.owner_id = owner_id
+
     def dispatch_before_send(self, event: BeforeSendEvent) -> Any:
         if not isinstance(event, BeforeSendEvent):
             raise TypeError("event must be a BeforeSendEvent")
@@ -591,6 +650,9 @@ class PluginHarness(Generic[PluginType]):
 
         if self._events.active_count:
             failures.append("event subscriptions remain active")
+
+        if self.plugin.events.typed_active_count:
+            failures.append("typed event subscriptions remain active")
 
         if self._ui_thread.pending_count:
             failures.append("UI callbacks remain queued")
