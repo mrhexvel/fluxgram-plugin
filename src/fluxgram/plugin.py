@@ -4,6 +4,7 @@ from .events import BeforeSendEvent
 from ._runtime import create_runtime
 from .settings import Settings
 from .storage import Storage, StorageMigration
+from .tasks import Tasks
 from .ui import UI
 
 
@@ -28,6 +29,7 @@ class Plugin:
         self.events = runtime.events
         self.client = runtime.client
         self.storage = Storage(runtime.storage)
+        self.tasks = Tasks(runtime.tasks)
         self.ui = UI(runtime.ui_thread, runtime.ui_services)
         self._cleanup_done = set()
         self._state = _PluginState.INITIALIZED
@@ -39,6 +41,7 @@ class Plugin:
         self.settings._bind_runtime(host, generation)
         self.client._bind_runtime(host, generation)
         self.storage._bind_runtime(host, generation)
+        self.tasks._bind_runtime(host, generation)
         self.ui._bind_runtime(host, generation)
         self.events.bind_runtime(host, generation)
         self._state = _PluginState.ACTIVE
@@ -49,6 +52,7 @@ class Plugin:
 
         self._state = _PluginState.CLOSING
         steps = (
+            ("tasks", self.tasks._close),
             ("ui", lambda: self._call_ui(self.ui._close)),
             ("client", self.client._close),
             ("events", lambda: self._call_ui(self.events.close)),

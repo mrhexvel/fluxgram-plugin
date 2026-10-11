@@ -23,6 +23,17 @@ from .storage import (
     StorageTypeError,
     StorageUnavailableError,
 )
+from .tasks import (
+    CancellationToken,
+    TaskCancelledError,
+    TaskError,
+    TaskHandle,
+    TaskInactiveError,
+    TaskQueueFullError,
+    TaskResult,
+    Tasks,
+    TaskUnavailableError,
+)
 from .models import (
     ChatInfo,
     ChatNotifications,
@@ -31,7 +42,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 2
+API_MINOR_VERSION = 3
 
 __all__ = [
     "Plugin",
@@ -61,6 +72,15 @@ __all__ = [
     "StorageQuotaExceededError",
     "StorageTransactionError",
     "StorageMigrationError",
+    "Tasks",
+    "TaskHandle",
+    "TaskResult",
+    "CancellationToken",
+    "TaskError",
+    "TaskUnavailableError",
+    "TaskInactiveError",
+    "TaskQueueFullError",
+    "TaskCancelledError",
     "API_VERSION",
     "API_MINOR_VERSION",
     "ChatInfo",

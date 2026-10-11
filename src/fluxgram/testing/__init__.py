@@ -19,6 +19,7 @@ from .harness import (
     PluginHarness,
 )
 from .storage import HarnessStorageBackend, HarnessStorageSession
+from .scheduler import FakeClock, HarnessTaskScheduler
 
 
 __all__ = [
@@ -32,6 +33,8 @@ __all__ = [
     "HarnessUI",
     "HarnessStorageBackend",
     "HarnessStorageSession",
+    "FakeClock",
+    "HarnessTaskScheduler",
     "NavigationCall",
     "NotificationCall",
     "before_send",

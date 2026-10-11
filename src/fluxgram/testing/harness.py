@@ -10,6 +10,7 @@ from ..plugin import Plugin
 from ..settings import SelectSetting, SliderSetting, SwitchSetting, TextSetting
 from ..storage import Storage, StorageMigrationError, _migrate_plugin_storage
 from .storage import HarnessStorageBackend
+from .scheduler import HarnessTaskScheduler
 
 
 PluginType = TypeVar("PluginType", bound=Plugin)
@@ -461,6 +462,7 @@ class PluginHarness(Generic[PluginType]):
         self.storage_backend = storage_backend or HarnessStorageBackend()
         self._values = dict(settings or {})
         self._host = _Host(self.generation, self._values)
+        self.tasks = HarnessTaskScheduler()
         self._closed = False
 
         migration_session = self.storage_backend.session(
@@ -490,6 +492,7 @@ class PluginHarness(Generic[PluginType]):
             call_ui=self._ui_thread.call,
             log=lambda current_id, message: self.logs.append((current_id, message)),
             storage=self._storage_session,
+            tasks=self.tasks,
         )
 
         try:
@@ -546,6 +549,7 @@ class PluginHarness(Generic[PluginType]):
 
     def invalidate_generation(self) -> None:
         self._host.invalidate()
+        self.tasks.invalidate()
         self.generation += 1
         self.settings.clear_pending()
 
@@ -596,6 +600,9 @@ class PluginHarness(Generic[PluginType]):
 
         if not self._storage_session.closed:
             failures.append("storage session remains active")
+
+        if self.tasks.active_count:
+            failures.append("managed tasks remain active")
 
         if failures:
             raise AssertionError("Plugin runtime is not clean: " + ", ".join(failures))

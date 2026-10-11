@@ -9,6 +9,7 @@ from .models import ChatInfo
 
 if TYPE_CHECKING:
     from .storage import StoragePort
+    from .tasks import TasksPort
 
 
 class Subscription(Protocol):
@@ -116,6 +117,7 @@ class RuntimeBindings:
     call_ui: Callable[[Callable[[], Any]], Any]
     log: Callable[[str, str], None]
     storage: "StoragePort | None" = None
+    tasks: "TasksPort | None" = None
 
 
 class RuntimeFactory(Protocol):

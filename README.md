@@ -126,3 +126,21 @@ payload = self.storage.account_files(account).read_bytes("state.bin")
 ```
 
 File replacement is atomic. File operations are not part of KV transactions or schema migrations. Plugins which use private files must require host SDK 2.2 or newer.
+
+## Managed tasks
+
+Host SDK 2.3 provides lifecycle-aware work on the plugin executor. Every callback receives a cancellation token. Pending work is cancelled during disable or unload, and a completion is delivered only while the same runtime generation remains active:
+
+```python
+task = self.tasks.submit(
+    lambda token: build_snapshot(token),
+    on_complete=lambda result: self.log(result.unwrap()),
+)
+
+self.tasks.delay(2.0, lambda token: refresh_once())
+self.tasks.periodic(60.0, lambda token: refresh_while_foreground())
+self.tasks.debounce("search", 0.4, lambda token: run_latest_search())
+self.tasks.coalesce("refresh", lambda token: refresh_latest_state())
+```
+
+Periodic tasks use fixed delay, pause while the application is in the background, and do not catch up missed intervals. Cancellation cannot stop Python code which has already started, but it suppresses its completion and future periodic runs. Plugins which use managed tasks must require host SDK 2.3 or newer.
