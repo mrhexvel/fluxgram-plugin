@@ -18,6 +18,8 @@ Typed observational events run sequentially on the plugin executor. They carry i
 
 `message_deleted` reports IDs from accepted ordinary cloud delete updates. Non-channel updates do not identify the dialog, while channel updates provide `channel_id` and `dialog_id`. Deleted message snapshots, topic, sender, direction, actor, reason, and revoke semantics are unavailable. Scheduled, quick-reply, ephemeral, secret, local-only, and history-clearing operations are excluded. Delivery for a deletion initiated on the same device is not guaranteed, and update replay may produce duplicates.
 
+`chat_opened` and `chat_closed` report navigation presentations of ordinary cloud chats after they become fully visible or hidden. Both carry a stable `presentation_id`, `dialog_id`, and `topic_id`. Background and foreground transitions, view recreation, previews, bubbles, embedded chats, secret chats, comments, and special chat modes do not create these events. A forum topic switch closes the old identity and opens the new identity with the same presentation ID. Subscribing does not replay an already open chat, and bounded delivery or subscription changes can produce an event without its pair.
+
 ```python
 class PluginEntry(Plugin):
     def on_load(self):

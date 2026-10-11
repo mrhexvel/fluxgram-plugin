@@ -2,6 +2,8 @@ from dataclasses import FrozenInstanceError
 import unittest
 
 from fluxgram import (
+    ChatClosedEvent,
+    ChatOpenedEvent,
     EventContext,
     EventChannel,
     Events,
@@ -15,6 +17,8 @@ from fluxgram import (
 )
 from fluxgram.testing import (
     PluginHarness,
+    chat_closed,
+    chat_opened,
     message_deleted,
     message_edited,
     message_received,
@@ -80,6 +84,20 @@ class MessageDeletedPlugin(Plugin):
     def on_load(self):
         self.subscription = self.events.message_deleted.subscribe(
             self.calls.append
+        )
+
+
+class ChatLifecyclePlugin(Plugin):
+    def __init__(self, plugin_id):
+        super().__init__(plugin_id)
+        self.calls = []
+
+    def on_load(self):
+        self.opened = self.events.chat_opened.subscribe(
+            lambda event: self.calls.append(("opened", event))
+        )
+        self.closed = self.events.chat_closed.subscribe(
+            lambda event: self.calls.append(("closed", event))
         )
 
 
@@ -302,6 +320,83 @@ class EventsTest(unittest.TestCase):
                 context=None,
                 message_id=1,
             )
+
+    def test_chat_lifecycle_events_are_typed_immutable_and_owner_scoped(self):
+        harness = PluginHarness(ChatLifecyclePlugin, account=2, owner_id=99)
+        opened = chat_opened(
+            -10,
+            presentation_id=50,
+            topic_id=7,
+            account=2,
+            owner_id=99,
+        )
+        closed = chat_closed(
+            -10,
+            presentation_id=50,
+            topic_id=7,
+            account=2,
+            owner_id=99,
+        )
+
+        self.assertTrue(harness._host.chat_opened_active)
+        self.assertTrue(harness._host.chat_closed_active)
+
+        harness.emit_event(opened)
+        harness.emit_event(closed)
+
+        self.assertEqual(harness.plugin.calls, [
+            ("opened", opened),
+            ("closed", closed),
+        ])
+        self.assertEqual(opened.context, EventContext(2, 99, 1))
+        self.assertEqual(opened.presentation_id, closed.presentation_id)
+
+        with self.assertRaises(FrozenInstanceError):
+            opened.topic_id = 8
+
+        harness.replace_owner(2, 100)
+        harness.emit_event(chat_closed(-10, account=2, owner_id=99))
+        self.assertEqual(len(harness.plugin.calls), 2)
+        harness.disable()
+        self.assertFalse(harness._host.chat_opened_active)
+        self.assertFalse(harness._host.chat_closed_active)
+
+    def test_chat_lifecycle_activation_is_independent(self):
+        harness = PluginHarness(EventPlugin)
+        first = harness.plugin.events.chat_opened.subscribe(lambda event: None)
+        second = harness.plugin.events.chat_opened.subscribe(lambda event: None)
+        closed = harness.plugin.events.chat_closed.subscribe(lambda event: None)
+
+        self.assertTrue(harness._host.chat_opened_active)
+        self.assertTrue(harness._host.chat_closed_active)
+        first.unsubscribe()
+        self.assertTrue(harness._host.chat_opened_active)
+        second.unsubscribe()
+        self.assertFalse(harness._host.chat_opened_active)
+        self.assertTrue(harness._host.chat_closed_active)
+        closed.unsubscribe()
+        self.assertFalse(harness._host.chat_closed_active)
+        harness.disable()
+
+    def test_chat_lifecycle_requires_valid_identity(self):
+        for values in (
+                {"dialog_id": 0},
+                {"dialog_id": 1, "presentation_id": 0},
+                {"dialog_id": 1, "topic_id": -1},
+        ):
+            with self.subTest(values=values):
+                with self.assertRaises(ValueError):
+                    chat_opened(**values)
+
+        with self.assertRaises(TypeError):
+            ChatClosedEvent(
+                context=None,
+                presentation_id=1,
+                dialog_id=1,
+            )
+
+        self.assertIsInstance(chat_opened(), ChatOpenedEvent)
+        self.assertIsInstance(chat_closed(), ChatClosedEvent)
 
     def test_typed_message_requires_matching_context(self):
         event = message_received()

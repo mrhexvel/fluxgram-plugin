@@ -2,6 +2,8 @@ from .plugin import Plugin
 from .settings import SwitchSetting, SelectSetting, SliderSetting, TextSetting
 from .events import (
     BeforeSendEvent,
+    ChatClosedEvent,
+    ChatOpenedEvent,
     EventChannel,
     EventContext,
     EventSubscription,
@@ -53,7 +55,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 7
+API_MINOR_VERSION = 8
 
 __all__ = [
     "Plugin",
@@ -62,6 +64,8 @@ __all__ = [
     "SliderSetting",
     "TextSetting",
     "BeforeSendEvent",
+    "ChatClosedEvent",
+    "ChatOpenedEvent",
     "MessageDeletedEvent",
     "MessageEditedEvent",
     "MessageReceivedEvent",

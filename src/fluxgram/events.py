@@ -188,6 +188,72 @@ class MessageDeletedEvent:
 
 
 @dataclass(frozen=True)
+class ChatOpenedEvent:
+    context: EventContext
+    presentation_id: int
+    dialog_id: int
+    topic_id: int = 0
+
+    def __post_init__(self):
+        if not isinstance(self.context, EventContext):
+            raise TypeError("Event context must be an EventContext")
+
+        if type(self.presentation_id) is not int or self.presentation_id <= 0:
+            raise ValueError("Chat presentation ID must be a positive integer")
+
+        if type(self.dialog_id) is not int or self.dialog_id == 0:
+            raise ValueError("Chat dialog ID must be a non-zero integer")
+
+        if type(self.topic_id) is not int or self.topic_id < 0:
+            raise ValueError("Chat topic ID must be a non-negative integer")
+
+    @property
+    def account(self) -> int:
+        return self.context.account
+
+    @property
+    def owner_id(self) -> int:
+        return self.context.owner_id
+
+    @property
+    def generation(self) -> int:
+        return self.context.generation
+
+
+@dataclass(frozen=True)
+class ChatClosedEvent:
+    context: EventContext
+    presentation_id: int
+    dialog_id: int
+    topic_id: int = 0
+
+    def __post_init__(self):
+        if not isinstance(self.context, EventContext):
+            raise TypeError("Event context must be an EventContext")
+
+        if type(self.presentation_id) is not int or self.presentation_id <= 0:
+            raise ValueError("Chat presentation ID must be a positive integer")
+
+        if type(self.dialog_id) is not int or self.dialog_id == 0:
+            raise ValueError("Chat dialog ID must be a non-zero integer")
+
+        if type(self.topic_id) is not int or self.topic_id < 0:
+            raise ValueError("Chat topic ID must be a non-negative integer")
+
+    @property
+    def account(self) -> int:
+        return self.context.account
+
+    @property
+    def owner_id(self) -> int:
+        return self.context.owner_id
+
+    @property
+    def generation(self) -> int:
+        return self.context.generation
+
+
+@dataclass(frozen=True)
 class PluginSettingChangedEvent:
     context: EventContext
     key: str
@@ -291,11 +357,23 @@ class Events:
             "message.deleted",
             MessageDeletedEvent,
         )
+        self.chat_opened = EventChannel(
+            self,
+            "chat.opened",
+            ChatOpenedEvent,
+        )
+        self.chat_closed = EventChannel(
+            self,
+            "chat.closed",
+            ChatClosedEvent,
+        )
         self._typed_channels = {
             PluginSettingChangedEvent: self.plugin_setting_changed,
             MessageReceivedEvent: self.message_received,
             MessageEditedEvent: self.message_edited,
             MessageDeletedEvent: self.message_deleted,
+            ChatOpenedEvent: self.chat_opened,
+            ChatClosedEvent: self.chat_closed,
         }
         self._typed_subscriptions = []
         self._typed_host = None
@@ -304,6 +382,8 @@ class Events:
         self._message_delivery_active = False
         self._message_edited_delivery_active = False
         self._message_deleted_delivery_active = False
+        self._chat_opened_delivery_active = False
+        self._chat_closed_delivery_active = False
         self._typed_error_handler = lambda name, error: None
         self._typed_lock = Lock()
 
@@ -332,6 +412,14 @@ class Events:
             if self._has_message_deleted_subscriptions_locked():
                 host.setMessageDeletedSubscriptionActive(generation, True)
                 self._message_deleted_delivery_active = True
+
+            if self._has_chat_opened_subscriptions_locked():
+                host.setChatOpenedSubscriptionActive(generation, True)
+                self._chat_opened_delivery_active = True
+
+            if self._has_chat_closed_subscriptions_locked():
+                host.setChatClosedSubscriptionActive(generation, True)
+                self._chat_closed_delivery_active = True
 
         self._legacy_port.bind_runtime(host, generation)
 
@@ -411,6 +499,36 @@ class Events:
                     self._typed_subscriptions.remove(subscription)
                     raise
 
+            if (
+                    channel is self.chat_opened
+                    and self._typed_host is not None
+                    and not self._chat_opened_delivery_active
+            ):
+                try:
+                    self._typed_host.setChatOpenedSubscriptionActive(
+                        self._typed_generation,
+                        True,
+                    )
+                    self._chat_opened_delivery_active = True
+                except BaseException:
+                    self._typed_subscriptions.remove(subscription)
+                    raise
+
+            if (
+                    channel is self.chat_closed
+                    and self._typed_host is not None
+                    and not self._chat_closed_delivery_active
+            ):
+                try:
+                    self._typed_host.setChatClosedSubscriptionActive(
+                        self._typed_generation,
+                        True,
+                    )
+                    self._chat_closed_delivery_active = True
+                except BaseException:
+                    self._typed_subscriptions.remove(subscription)
+                    raise
+
             return subscription
 
     def _remove(self, subscription: EventSubscription) -> None:
@@ -450,6 +568,28 @@ class Events:
                     False,
                 )
                 self._message_deleted_delivery_active = False
+
+            if (
+                    subscription.channel is self.chat_opened
+                    and self._chat_opened_delivery_active
+                    and not self._has_chat_opened_subscriptions_locked()
+            ):
+                self._typed_host.setChatOpenedSubscriptionActive(
+                    self._typed_generation,
+                    False,
+                )
+                self._chat_opened_delivery_active = False
+
+            if (
+                    subscription.channel is self.chat_closed
+                    and self._chat_closed_delivery_active
+                    and not self._has_chat_closed_subscriptions_locked()
+            ):
+                self._typed_host.setChatClosedSubscriptionActive(
+                    self._typed_generation,
+                    False,
+                )
+                self._chat_closed_delivery_active = False
 
     def _dispatch(self, event: Any) -> None:
         channel = self._typed_channels.get(type(event))
@@ -517,6 +657,20 @@ class Events:
                     )
                     self._message_deleted_delivery_active = False
 
+                if self._chat_opened_delivery_active:
+                    self._typed_host.setChatOpenedSubscriptionActive(
+                        self._typed_generation,
+                        False,
+                    )
+                    self._chat_opened_delivery_active = False
+
+                if self._chat_closed_delivery_active:
+                    self._typed_host.setChatClosedSubscriptionActive(
+                        self._typed_generation,
+                        False,
+                    )
+                    self._chat_closed_delivery_active = False
+
                 self._typed_host = None
                 self._typed_generation = None
 
@@ -558,6 +712,20 @@ class Events:
     def _has_message_deleted_subscriptions_locked(self) -> bool:
         return any(
             subscription.channel is self.message_deleted
+            and not subscription._closed
+            for subscription in self._typed_subscriptions
+        )
+
+    def _has_chat_opened_subscriptions_locked(self) -> bool:
+        return any(
+            subscription.channel is self.chat_opened
+            and not subscription._closed
+            for subscription in self._typed_subscriptions
+        )
+
+    def _has_chat_closed_subscriptions_locked(self) -> bool:
+        return any(
+            subscription.channel is self.chat_closed
             and not subscription._closed
             for subscription in self._typed_subscriptions
         )

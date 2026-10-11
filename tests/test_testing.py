@@ -12,7 +12,9 @@ from fluxgram.testing import (
     PluginHarness,
     before_send,
     chat,
+    chat_closed,
     chat_notifications,
+    chat_opened,
     message,
     message_deleted,
     message_edited,
@@ -144,6 +146,13 @@ class TestingTest(unittest.TestCase):
         self.assertTrue(event.chat.notifications.effective_muted)
         self.assertEqual(message_deleted(8, channel_id=10).dialog_id, -10)
         self.assertEqual(message_edited(edit_date=123).edit_date, 123)
+        opened = chat_opened(-10, presentation_id=20, topic_id=3)
+        closed = chat_closed(-10, presentation_id=20, topic_id=3)
+        self.assertEqual(
+            (opened.presentation_id, opened.dialog_id, opened.topic_id),
+            (20, -10, 3),
+        )
+        self.assertEqual(closed.presentation_id, opened.presentation_id)
         self.assertTrue(before_send(schedule_date=5).scheduled)
 
         with self.assertRaisesRegex(ValueError, "dialog IDs"):

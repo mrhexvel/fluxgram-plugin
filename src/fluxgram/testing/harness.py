@@ -60,12 +60,16 @@ class _Host:
         self.message_received_active = False
         self.message_edited_active = False
         self.message_deleted_active = False
+        self.chat_opened_active = False
+        self.chat_closed_active = False
 
     def invalidate(self) -> None:
         self._generation = None
         self.message_received_active = False
         self.message_edited_active = False
         self.message_deleted_active = False
+        self.chat_opened_active = False
+        self.chat_closed_active = False
 
     def isGenerationActive(self, generation: int) -> bool:
         return self._generation == generation
@@ -108,6 +112,22 @@ class _Host:
     ) -> None:
         if self.isGenerationActive(generation):
             self.message_deleted_active = active
+
+    def setChatOpenedSubscriptionActive(
+            self,
+            generation: int,
+            active: bool,
+    ) -> None:
+        if self.isGenerationActive(generation):
+            self.chat_opened_active = active
+
+    def setChatClosedSubscriptionActive(
+            self,
+            generation: int,
+            active: bool,
+    ) -> None:
+        if self.isGenerationActive(generation):
+            self.chat_closed_active = active
 
 
 class _UIThread:

@@ -1,5 +1,7 @@
 from ..events import (
     BeforeSendEvent,
+    ChatClosedEvent,
+    ChatOpenedEvent,
     EventContext,
     MessageDeletedEvent,
     MessageEditedEvent,
@@ -152,6 +154,50 @@ def message_deleted(
         ),
         message_id=message_id,
         channel_id=channel_id,
+    )
+
+
+def chat_opened(
+        dialog_id: int = 1,
+        *,
+        presentation_id: int = 1,
+        topic_id: int = 0,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        context: EventContext | None = None,
+) -> ChatOpenedEvent:
+    return ChatOpenedEvent(
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
+        presentation_id=presentation_id,
+        dialog_id=dialog_id,
+        topic_id=topic_id,
+    )
+
+
+def chat_closed(
+        dialog_id: int = 1,
+        *,
+        presentation_id: int = 1,
+        topic_id: int = 0,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        context: EventContext | None = None,
+) -> ChatClosedEvent:
+    return ChatClosedEvent(
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
+        presentation_id=presentation_id,
+        dialog_id=dialog_id,
+        topic_id=topic_id,
     )
 
 
