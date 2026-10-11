@@ -1,4 +1,6 @@
 from .builders import (
+    application_backgrounded,
+    application_foregrounded,
     before_send,
     chat,
     chat_closed,
@@ -44,6 +46,8 @@ __all__ = [
     "NavigationCall",
     "NotificationCall",
     "before_send",
+    "application_backgrounded",
+    "application_foregrounded",
     "chat",
     "chat_closed",
     "chat_notifications",

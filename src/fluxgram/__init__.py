@@ -1,6 +1,8 @@
 from .plugin import Plugin
 from .settings import SwitchSetting, SelectSetting, SliderSetting, TextSetting
 from .events import (
+    ApplicationBackgroundedEvent,
+    ApplicationForegroundedEvent,
     BeforeSendEvent,
     ChatClosedEvent,
     ChatOpenedEvent,
@@ -55,10 +57,12 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 8
+API_MINOR_VERSION = 9
 
 __all__ = [
     "Plugin",
+    "ApplicationBackgroundedEvent",
+    "ApplicationForegroundedEvent",
     "SwitchSetting",
     "SelectSetting",
     "SliderSetting",

@@ -10,6 +10,8 @@ from fluxgram import (
 from fluxgram.models import ChatInfo, MessageInfo
 from fluxgram.testing import (
     PluginHarness,
+    application_backgrounded,
+    application_foregrounded,
     before_send,
     chat,
     chat_closed,
@@ -153,6 +155,8 @@ class TestingTest(unittest.TestCase):
             (20, -10, 3),
         )
         self.assertEqual(closed.presentation_id, opened.presentation_id)
+        self.assertEqual(application_foregrounded().account, 0)
+        self.assertEqual(application_backgrounded().owner_id, 1)
         self.assertTrue(before_send(schedule_date=5).scheduled)
 
         with self.assertRaisesRegex(ValueError, "dialog IDs"):

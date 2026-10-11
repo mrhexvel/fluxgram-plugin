@@ -2,6 +2,8 @@ from dataclasses import FrozenInstanceError
 import unittest
 
 from fluxgram import (
+    ApplicationBackgroundedEvent,
+    ApplicationForegroundedEvent,
     ChatClosedEvent,
     ChatOpenedEvent,
     EventContext,
@@ -17,6 +19,8 @@ from fluxgram import (
 )
 from fluxgram.testing import (
     PluginHarness,
+    application_backgrounded,
+    application_foregrounded,
     chat_closed,
     chat_opened,
     message_deleted,
@@ -98,6 +102,20 @@ class ChatLifecyclePlugin(Plugin):
         )
         self.closed = self.events.chat_closed.subscribe(
             lambda event: self.calls.append(("closed", event))
+        )
+
+
+class ApplicationLifecyclePlugin(Plugin):
+    def __init__(self, plugin_id):
+        super().__init__(plugin_id)
+        self.calls = []
+
+    def on_load(self):
+        self.foregrounded = self.events.application_foregrounded.subscribe(
+            lambda event: self.calls.append(("foregrounded", event))
+        )
+        self.backgrounded = self.events.application_backgrounded.subscribe(
+            lambda event: self.calls.append(("backgrounded", event))
         )
 
 
@@ -397,6 +415,72 @@ class EventsTest(unittest.TestCase):
 
         self.assertIsInstance(chat_opened(), ChatOpenedEvent)
         self.assertIsInstance(chat_closed(), ChatClosedEvent)
+
+    def test_application_lifecycle_events_are_typed_and_owner_scoped(self):
+        harness = PluginHarness(ApplicationLifecyclePlugin, account=2, owner_id=99)
+        backgrounded = application_backgrounded(account=2, owner_id=99)
+        foregrounded = application_foregrounded(account=2, owner_id=99)
+
+        self.assertTrue(harness._host.application_backgrounded_active)
+        self.assertTrue(harness._host.application_foregrounded_active)
+
+        harness.emit_event(backgrounded)
+        harness.emit_event(foregrounded)
+
+        self.assertEqual(harness.plugin.calls, [
+            ("backgrounded", backgrounded),
+            ("foregrounded", foregrounded),
+        ])
+        self.assertEqual(backgrounded.context, EventContext(2, 99, 1))
+
+        with self.assertRaises(FrozenInstanceError):
+            foregrounded.context = EventContext(2, 99, 2)
+
+        harness.replace_owner(2, 100)
+        harness.emit_event(application_backgrounded(account=2, owner_id=99))
+        self.assertEqual(len(harness.plugin.calls), 2)
+        harness.disable()
+        self.assertFalse(harness._host.application_backgrounded_active)
+        self.assertFalse(harness._host.application_foregrounded_active)
+
+    def test_application_lifecycle_activation_is_independent(self):
+        harness = PluginHarness(EventPlugin)
+        first = harness.plugin.events.application_backgrounded.subscribe(
+            lambda event: None
+        )
+        second = harness.plugin.events.application_backgrounded.subscribe(
+            lambda event: None
+        )
+        foregrounded = harness.plugin.events.application_foregrounded.subscribe(
+            lambda event: None
+        )
+
+        self.assertTrue(harness._host.application_backgrounded_active)
+        self.assertTrue(harness._host.application_foregrounded_active)
+        first.unsubscribe()
+        self.assertTrue(harness._host.application_backgrounded_active)
+        second.unsubscribe()
+        self.assertFalse(harness._host.application_backgrounded_active)
+        self.assertTrue(harness._host.application_foregrounded_active)
+        foregrounded.unsubscribe()
+        self.assertFalse(harness._host.application_foregrounded_active)
+        harness.disable()
+
+    def test_application_lifecycle_requires_event_context(self):
+        with self.assertRaises(TypeError):
+            ApplicationForegroundedEvent(context=None)
+
+        with self.assertRaises(TypeError):
+            ApplicationBackgroundedEvent(context=None)
+
+        self.assertIsInstance(
+            application_foregrounded(),
+            ApplicationForegroundedEvent,
+        )
+        self.assertIsInstance(
+            application_backgrounded(),
+            ApplicationBackgroundedEvent,
+        )
 
     def test_typed_message_requires_matching_context(self):
         event = message_received()

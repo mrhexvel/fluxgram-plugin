@@ -20,6 +20,8 @@ Typed observational events run sequentially on the plugin executor. They carry i
 
 `chat_opened` and `chat_closed` report navigation presentations of ordinary cloud chats after they become fully visible or hidden. Both carry a stable `presentation_id`, `dialog_id`, and `topic_id`. Background and foreground transitions, view recreation, previews, bubbles, embedded chats, secret chats, comments, and special chat modes do not create these events. A forum topic switch closes the old identity and opens the new identity with the same presentation ID. Subscribing does not replay an already open chat, and bounded delivery or subscription changes can produce an event without its pair.
 
+`application_foregrounded` and `application_backgrounded` report stabilized process-wide visibility transitions across all FluxGram activities. A background edge is confirmed after 200 milliseconds to ignore short activity handoffs. Each event captures the selected account at that edge. Account switches, passcode overlays, screen state alone, and ordinary UI navigation are not transitions. Subscribing does not replay the current state, and Android does not guarantee a final background callback before process death.
+
 ```python
 class PluginEntry(Plugin):
     def on_load(self):

@@ -254,6 +254,48 @@ class ChatClosedEvent:
 
 
 @dataclass(frozen=True)
+class ApplicationForegroundedEvent:
+    context: EventContext
+
+    def __post_init__(self):
+        if not isinstance(self.context, EventContext):
+            raise TypeError("Event context must be an EventContext")
+
+    @property
+    def account(self) -> int:
+        return self.context.account
+
+    @property
+    def owner_id(self) -> int:
+        return self.context.owner_id
+
+    @property
+    def generation(self) -> int:
+        return self.context.generation
+
+
+@dataclass(frozen=True)
+class ApplicationBackgroundedEvent:
+    context: EventContext
+
+    def __post_init__(self):
+        if not isinstance(self.context, EventContext):
+            raise TypeError("Event context must be an EventContext")
+
+    @property
+    def account(self) -> int:
+        return self.context.account
+
+    @property
+    def owner_id(self) -> int:
+        return self.context.owner_id
+
+    @property
+    def generation(self) -> int:
+        return self.context.generation
+
+
+@dataclass(frozen=True)
 class PluginSettingChangedEvent:
     context: EventContext
     key: str
@@ -367,6 +409,16 @@ class Events:
             "chat.closed",
             ChatClosedEvent,
         )
+        self.application_foregrounded = EventChannel(
+            self,
+            "application.foregrounded",
+            ApplicationForegroundedEvent,
+        )
+        self.application_backgrounded = EventChannel(
+            self,
+            "application.backgrounded",
+            ApplicationBackgroundedEvent,
+        )
         self._typed_channels = {
             PluginSettingChangedEvent: self.plugin_setting_changed,
             MessageReceivedEvent: self.message_received,
@@ -374,6 +426,8 @@ class Events:
             MessageDeletedEvent: self.message_deleted,
             ChatOpenedEvent: self.chat_opened,
             ChatClosedEvent: self.chat_closed,
+            ApplicationForegroundedEvent: self.application_foregrounded,
+            ApplicationBackgroundedEvent: self.application_backgrounded,
         }
         self._typed_subscriptions = []
         self._typed_host = None
@@ -384,6 +438,8 @@ class Events:
         self._message_deleted_delivery_active = False
         self._chat_opened_delivery_active = False
         self._chat_closed_delivery_active = False
+        self._application_foregrounded_delivery_active = False
+        self._application_backgrounded_delivery_active = False
         self._typed_error_handler = lambda name, error: None
         self._typed_lock = Lock()
 
@@ -420,6 +476,14 @@ class Events:
             if self._has_chat_closed_subscriptions_locked():
                 host.setChatClosedSubscriptionActive(generation, True)
                 self._chat_closed_delivery_active = True
+
+            if self._has_application_foregrounded_subscriptions_locked():
+                host.setApplicationForegroundedSubscriptionActive(generation, True)
+                self._application_foregrounded_delivery_active = True
+
+            if self._has_application_backgrounded_subscriptions_locked():
+                host.setApplicationBackgroundedSubscriptionActive(generation, True)
+                self._application_backgrounded_delivery_active = True
 
         self._legacy_port.bind_runtime(host, generation)
 
@@ -529,6 +593,36 @@ class Events:
                     self._typed_subscriptions.remove(subscription)
                     raise
 
+            if (
+                    channel is self.application_foregrounded
+                    and self._typed_host is not None
+                    and not self._application_foregrounded_delivery_active
+            ):
+                try:
+                    self._typed_host.setApplicationForegroundedSubscriptionActive(
+                        self._typed_generation,
+                        True,
+                    )
+                    self._application_foregrounded_delivery_active = True
+                except BaseException:
+                    self._typed_subscriptions.remove(subscription)
+                    raise
+
+            if (
+                    channel is self.application_backgrounded
+                    and self._typed_host is not None
+                    and not self._application_backgrounded_delivery_active
+            ):
+                try:
+                    self._typed_host.setApplicationBackgroundedSubscriptionActive(
+                        self._typed_generation,
+                        True,
+                    )
+                    self._application_backgrounded_delivery_active = True
+                except BaseException:
+                    self._typed_subscriptions.remove(subscription)
+                    raise
+
             return subscription
 
     def _remove(self, subscription: EventSubscription) -> None:
@@ -590,6 +684,28 @@ class Events:
                     False,
                 )
                 self._chat_closed_delivery_active = False
+
+            if (
+                    subscription.channel is self.application_foregrounded
+                    and self._application_foregrounded_delivery_active
+                    and not self._has_application_foregrounded_subscriptions_locked()
+            ):
+                self._typed_host.setApplicationForegroundedSubscriptionActive(
+                    self._typed_generation,
+                    False,
+                )
+                self._application_foregrounded_delivery_active = False
+
+            if (
+                    subscription.channel is self.application_backgrounded
+                    and self._application_backgrounded_delivery_active
+                    and not self._has_application_backgrounded_subscriptions_locked()
+            ):
+                self._typed_host.setApplicationBackgroundedSubscriptionActive(
+                    self._typed_generation,
+                    False,
+                )
+                self._application_backgrounded_delivery_active = False
 
     def _dispatch(self, event: Any) -> None:
         channel = self._typed_channels.get(type(event))
@@ -671,6 +787,20 @@ class Events:
                     )
                     self._chat_closed_delivery_active = False
 
+                if self._application_foregrounded_delivery_active:
+                    self._typed_host.setApplicationForegroundedSubscriptionActive(
+                        self._typed_generation,
+                        False,
+                    )
+                    self._application_foregrounded_delivery_active = False
+
+                if self._application_backgrounded_delivery_active:
+                    self._typed_host.setApplicationBackgroundedSubscriptionActive(
+                        self._typed_generation,
+                        False,
+                    )
+                    self._application_backgrounded_delivery_active = False
+
                 self._typed_host = None
                 self._typed_generation = None
 
@@ -726,6 +856,20 @@ class Events:
     def _has_chat_closed_subscriptions_locked(self) -> bool:
         return any(
             subscription.channel is self.chat_closed
+            and not subscription._closed
+            for subscription in self._typed_subscriptions
+        )
+
+    def _has_application_foregrounded_subscriptions_locked(self) -> bool:
+        return any(
+            subscription.channel is self.application_foregrounded
+            and not subscription._closed
+            for subscription in self._typed_subscriptions
+        )
+
+    def _has_application_backgrounded_subscriptions_locked(self) -> bool:
+        return any(
+            subscription.channel is self.application_backgrounded
             and not subscription._closed
             for subscription in self._typed_subscriptions
         )

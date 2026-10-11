@@ -1,4 +1,6 @@
 from ..events import (
+    ApplicationBackgroundedEvent,
+    ApplicationForegroundedEvent,
     BeforeSendEvent,
     ChatClosedEvent,
     ChatOpenedEvent,
@@ -198,6 +200,38 @@ def chat_closed(
         presentation_id=presentation_id,
         dialog_id=dialog_id,
         topic_id=topic_id,
+    )
+
+
+def application_foregrounded(
+        *,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        context: EventContext | None = None,
+) -> ApplicationForegroundedEvent:
+    return ApplicationForegroundedEvent(
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
+    )
+
+
+def application_backgrounded(
+        *,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        context: EventContext | None = None,
+) -> ApplicationBackgroundedEvent:
+    return ApplicationBackgroundedEvent(
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
     )
 
 
