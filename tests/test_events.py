@@ -6,6 +6,7 @@ from fluxgram import (
     EventChannel,
     Events,
     ExecutionContext,
+    MessageDeletedEvent,
     MessageEditedEvent,
     MessageReceivedEvent,
     Plugin,
@@ -14,6 +15,7 @@ from fluxgram import (
 )
 from fluxgram.testing import (
     PluginHarness,
+    message_deleted,
     message_edited,
     message_received,
     plugin_setting_changed,
@@ -66,6 +68,17 @@ class MessageEditedPlugin(Plugin):
 
     def on_load(self):
         self.subscription = self.events.message_edited.subscribe(
+            self.calls.append
+        )
+
+
+class MessageDeletedPlugin(Plugin):
+    def __init__(self, plugin_id):
+        super().__init__(plugin_id)
+        self.calls = []
+
+    def on_load(self):
+        self.subscription = self.events.message_deleted.subscribe(
             self.calls.append
         )
 
@@ -232,6 +245,63 @@ class EventsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             message_edited(edit_date=0)
+
+    def test_message_deleted_event_is_ids_only_and_does_not_dedupe(self):
+        harness = PluginHarness(MessageDeletedPlugin, account=2, owner_id=99)
+        direct = message_deleted(7, account=2, owner_id=99)
+        channel = message_deleted(7, account=2, owner_id=99, channel_id=10)
+
+        self.assertTrue(harness._host.message_deleted_active)
+        self.assertFalse(harness._host.message_received_active)
+        self.assertFalse(harness._host.message_edited_active)
+
+        harness.emit_event(direct)
+        harness.emit_event(direct)
+        harness.emit_event(channel)
+
+        self.assertEqual(harness.plugin.calls, [direct, direct, channel])
+        self.assertEqual(direct.dialog_id, None)
+        self.assertEqual(channel.dialog_id, -10)
+        self.assertEqual(channel.account, 2)
+        self.assertEqual(channel.owner_id, 99)
+
+        with self.assertRaises(FrozenInstanceError):
+            channel.message_id = 8
+
+        harness.replace_owner(2, 100)
+        harness.emit_event(message_deleted(8, account=2, owner_id=99))
+        self.assertEqual(harness.plugin.calls, [direct, direct, channel])
+        harness.disable()
+        self.assertFalse(harness._host.message_deleted_active)
+
+    def test_message_deleted_activation_is_independent(self):
+        harness = PluginHarness(EventPlugin)
+        edited = harness.plugin.events.message_edited.subscribe(lambda event: None)
+        first = harness.plugin.events.message_deleted.subscribe(lambda event: None)
+        second = harness.plugin.events.message_deleted.subscribe(lambda event: None)
+
+        self.assertTrue(harness._host.message_edited_active)
+        self.assertTrue(harness._host.message_deleted_active)
+        first.unsubscribe()
+        self.assertTrue(harness._host.message_deleted_active)
+        second.unsubscribe()
+        self.assertFalse(harness._host.message_deleted_active)
+        self.assertTrue(harness._host.message_edited_active)
+        edited.unsubscribe()
+        harness.disable()
+
+    def test_message_deleted_requires_valid_ids(self):
+        with self.assertRaises(ValueError):
+            message_deleted(0)
+
+        with self.assertRaises(ValueError):
+            message_deleted(1, channel_id=0)
+
+        with self.assertRaises(TypeError):
+            MessageDeletedEvent(
+                context=None,
+                message_id=1,
+            )
 
     def test_typed_message_requires_matching_context(self):
         event = message_received()

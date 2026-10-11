@@ -151,6 +151,43 @@ class MessageEditedEvent:
 
 
 @dataclass(frozen=True)
+class MessageDeletedEvent:
+    context: EventContext
+    message_id: int
+    channel_id: int | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.context, EventContext):
+            raise TypeError("Event context must be an EventContext")
+
+        if type(self.message_id) is not int or self.message_id <= 0:
+            raise ValueError("Deleted message ID must be a positive integer")
+
+        if self.channel_id is not None:
+            if type(self.channel_id) is not int or self.channel_id <= 0:
+                raise ValueError("Deleted message channel ID must be positive")
+
+    @property
+    def account(self) -> int:
+        return self.context.account
+
+    @property
+    def owner_id(self) -> int:
+        return self.context.owner_id
+
+    @property
+    def generation(self) -> int:
+        return self.context.generation
+
+    @property
+    def dialog_id(self) -> int | None:
+        if self.channel_id is None:
+            return None
+
+        return -self.channel_id
+
+
+@dataclass(frozen=True)
 class PluginSettingChangedEvent:
     context: EventContext
     key: str
@@ -249,10 +286,16 @@ class Events:
             "message.edited",
             MessageEditedEvent,
         )
+        self.message_deleted = EventChannel(
+            self,
+            "message.deleted",
+            MessageDeletedEvent,
+        )
         self._typed_channels = {
             PluginSettingChangedEvent: self.plugin_setting_changed,
             MessageReceivedEvent: self.message_received,
             MessageEditedEvent: self.message_edited,
+            MessageDeletedEvent: self.message_deleted,
         }
         self._typed_subscriptions = []
         self._typed_host = None
@@ -260,6 +303,7 @@ class Events:
         self._typed_closed = False
         self._message_delivery_active = False
         self._message_edited_delivery_active = False
+        self._message_deleted_delivery_active = False
         self._typed_error_handler = lambda name, error: None
         self._typed_lock = Lock()
 
@@ -284,6 +328,10 @@ class Events:
             if self._has_message_edited_subscriptions_locked():
                 host.setMessageEditedSubscriptionActive(generation, True)
                 self._message_edited_delivery_active = True
+
+            if self._has_message_deleted_subscriptions_locked():
+                host.setMessageDeletedSubscriptionActive(generation, True)
+                self._message_deleted_delivery_active = True
 
         self._legacy_port.bind_runtime(host, generation)
 
@@ -348,6 +396,21 @@ class Events:
                     self._typed_subscriptions.remove(subscription)
                     raise
 
+            if (
+                    channel is self.message_deleted
+                    and self._typed_host is not None
+                    and not self._message_deleted_delivery_active
+            ):
+                try:
+                    self._typed_host.setMessageDeletedSubscriptionActive(
+                        self._typed_generation,
+                        True,
+                    )
+                    self._message_deleted_delivery_active = True
+                except BaseException:
+                    self._typed_subscriptions.remove(subscription)
+                    raise
+
             return subscription
 
     def _remove(self, subscription: EventSubscription) -> None:
@@ -376,6 +439,17 @@ class Events:
                     False,
                 )
                 self._message_edited_delivery_active = False
+
+            if (
+                    subscription.channel is self.message_deleted
+                    and self._message_deleted_delivery_active
+                    and not self._has_message_deleted_subscriptions_locked()
+            ):
+                self._typed_host.setMessageDeletedSubscriptionActive(
+                    self._typed_generation,
+                    False,
+                )
+                self._message_deleted_delivery_active = False
 
     def _dispatch(self, event: Any) -> None:
         channel = self._typed_channels.get(type(event))
@@ -436,6 +510,13 @@ class Events:
                     )
                     self._message_edited_delivery_active = False
 
+                if self._message_deleted_delivery_active:
+                    self._typed_host.setMessageDeletedSubscriptionActive(
+                        self._typed_generation,
+                        False,
+                    )
+                    self._message_deleted_delivery_active = False
+
                 self._typed_host = None
                 self._typed_generation = None
 
@@ -470,6 +551,13 @@ class Events:
     def _has_message_edited_subscriptions_locked(self) -> bool:
         return any(
             subscription.channel is self.message_edited
+            and not subscription._closed
+            for subscription in self._typed_subscriptions
+        )
+
+    def _has_message_deleted_subscriptions_locked(self) -> bool:
+        return any(
+            subscription.channel is self.message_deleted
             and not subscription._closed
             for subscription in self._typed_subscriptions
         )

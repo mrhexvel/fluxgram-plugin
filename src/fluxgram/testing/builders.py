@@ -1,6 +1,7 @@
 from ..events import (
     BeforeSendEvent,
     EventContext,
+    MessageDeletedEvent,
     MessageEditedEvent,
     MessageReceivedEvent,
     PluginSettingChangedEvent,
@@ -131,6 +132,26 @@ def message_edited(
             owner_id=owner_id,
             generation=generation,
         ),
+    )
+
+
+def message_deleted(
+        message_id: int = 1,
+        *,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        channel_id: int | None = None,
+        context: EventContext | None = None,
+) -> MessageDeletedEvent:
+    return MessageDeletedEvent(
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
+        message_id=message_id,
+        channel_id=channel_id,
     )
 
 

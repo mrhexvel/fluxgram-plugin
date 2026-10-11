@@ -7,6 +7,7 @@ from .events import (
     EventSubscription,
     Events,
     ExecutionContext,
+    MessageDeletedEvent,
     MessageEditedEvent,
     MessageReceivedEvent,
     PluginSettingChangedEvent,
@@ -52,7 +53,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 6
+API_MINOR_VERSION = 7
 
 __all__ = [
     "Plugin",
@@ -61,6 +62,7 @@ __all__ = [
     "SliderSetting",
     "TextSetting",
     "BeforeSendEvent",
+    "MessageDeletedEvent",
     "MessageEditedEvent",
     "MessageReceivedEvent",
     "Events",

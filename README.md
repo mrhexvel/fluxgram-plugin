@@ -16,6 +16,8 @@ Typed observational events run sequentially on the plugin executor. They carry i
 
 `message_edited` reports the new server-confirmed snapshot of an ordinary cloud message. It includes incoming and outgoing edits, but not scheduled, quick-reply, ephemeral, secret, or service messages. It does not provide the previous version or a text diff, and duplicate delivery remains possible after Telegram update replay.
 
+`message_deleted` reports IDs from accepted ordinary cloud delete updates. Non-channel updates do not identify the dialog, while channel updates provide `channel_id` and `dialog_id`. Deleted message snapshots, topic, sender, direction, actor, reason, and revoke semantics are unavailable. Scheduled, quick-reply, ephemeral, secret, local-only, and history-clearing operations are excluded. Delivery for a deletion initiated on the same device is not guaranteed, and update replay may produce duplicates.
+
 ```python
 class PluginEntry(Plugin):
     def on_load(self):

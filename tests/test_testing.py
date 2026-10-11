@@ -14,6 +14,7 @@ from fluxgram.testing import (
     chat,
     chat_notifications,
     message,
+    message_deleted,
     message_edited,
     message_received,
     notification_override,
@@ -141,6 +142,7 @@ class TestingTest(unittest.TestCase):
         self.assertEqual(event.dialog_id, -10)
         self.assertEqual(event.text, "Hello")
         self.assertTrue(event.chat.notifications.effective_muted)
+        self.assertEqual(message_deleted(8, channel_id=10).dialog_id, -10)
         self.assertEqual(message_edited(edit_date=123).edit_date, 123)
         self.assertTrue(before_send(schedule_date=5).scheduled)
 
