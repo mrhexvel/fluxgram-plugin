@@ -6,11 +6,12 @@ from fluxgram import (
     EventChannel,
     Events,
     ExecutionContext,
+    MessageReceivedEvent,
     Plugin,
     PluginSettingChangedEvent,
     SwitchSetting,
 )
-from fluxgram.testing import PluginHarness, plugin_setting_changed
+from fluxgram.testing import PluginHarness, message_received, plugin_setting_changed
 
 
 class EventPlugin(Plugin):
@@ -39,6 +40,17 @@ class SettingPlugin(EventPlugin):
 
     def on_setting_changed(self, key, value):
         self.order.append(("legacy", key, value))
+
+
+class MessagePlugin(Plugin):
+    def __init__(self, plugin_id):
+        super().__init__(plugin_id)
+        self.calls = []
+
+    def on_load(self):
+        self.subscription = self.events.message_received.subscribe(
+            self.calls.append
+        )
 
 
 class EventsTest(unittest.TestCase):
@@ -116,6 +128,61 @@ class EventsTest(unittest.TestCase):
 
         self.assertEqual(calls, [event])
         self.assertTrue(any("ValueError: broken" in message for _, message in harness.logs))
+        harness.disable()
+
+    def test_message_event_is_typed_immutable_and_owner_scoped(self):
+        harness = PluginHarness(MessagePlugin, account=2, owner_id=99)
+        event = message_received(account=2, owner_id=99)
+
+        self.assertTrue(harness._host.message_received_active)
+
+        harness.emit_event(event)
+
+        self.assertEqual(harness.plugin.calls, [event])
+        self.assertEqual(event.context, EventContext(2, 99, 1))
+
+        with self.assertRaises(FrozenInstanceError):
+            event.account = 3
+
+        harness.replace_owner(2, 100)
+        harness.emit_event(message_received(account=2, owner_id=99))
+        self.assertEqual(harness.plugin.calls, [event])
+        harness.disable()
+        self.assertFalse(harness._host.message_received_active)
+
+    def test_message_delivery_activation_tracks_last_subscription(self):
+        harness = PluginHarness(EventPlugin)
+        first = harness.plugin.events.message_received.subscribe(lambda event: None)
+        second = harness.plugin.events.message_received.subscribe(lambda event: None)
+
+        self.assertTrue(harness._host.message_received_active)
+        first.unsubscribe()
+        self.assertTrue(harness._host.message_received_active)
+        second.unsubscribe()
+        self.assertFalse(harness._host.message_received_active)
+        harness.disable()
+
+    def test_typed_message_requires_matching_context(self):
+        event = message_received()
+
+        with self.assertRaises(ValueError):
+            MessageReceivedEvent(
+                account=1,
+                chat=event.chat,
+                message=event.message,
+                context=EventContext(0, 1, 1),
+            )
+
+        raw_event = MessageReceivedEvent(
+            account=0,
+            chat=event.chat,
+            message=event.message,
+        )
+        harness = PluginHarness(MessagePlugin)
+
+        with self.assertRaisesRegex(TypeError, "require an EventContext"):
+            harness.emit_event(raw_event)
+
         harness.disable()
 
     def test_generation_context_and_subscription_lifecycle(self):

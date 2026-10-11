@@ -57,9 +57,11 @@ class _Host:
     def __init__(self, generation: int, values: dict[str, Any]):
         self._generation = generation
         self._values = values
+        self.message_received_active = False
 
     def invalidate(self) -> None:
         self._generation = None
+        self.message_received_active = False
 
     def isGenerationActive(self, generation: int) -> bool:
         return self._generation == generation
@@ -78,6 +80,14 @@ class _Host:
         value = self._values.get(key, fallback)
 
         return value if type(value) is int else fallback
+
+    def setMessageReceivedSubscriptionActive(
+            self,
+            generation: int,
+            active: bool,
+    ) -> None:
+        if self.isGenerationActive(generation):
+            self.message_received_active = active
 
 
 class _UIThread:
@@ -557,6 +567,14 @@ class PluginHarness(Generic[PluginType]):
         return self._events.emit(name, event)
 
     def emit_event(self, event) -> None:
+        context = getattr(event, "context", None)
+
+        if (
+                isinstance(context, EventContext)
+                and self.owner_for(context.account) != context.owner_id
+        ):
+            return
+
         self.run_worker(lambda: self.plugin.events._dispatch(event))
 
     def owner_for(self, account: int) -> int | None:

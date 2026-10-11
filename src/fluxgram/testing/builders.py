@@ -80,6 +80,9 @@ def message(
 def message_received(
         *,
         account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        context: EventContext | None = None,
         chat_info: ChatInfo | None = None,
         message_info: MessageInfo | None = None,
 ) -> MessageReceivedEvent:
@@ -93,6 +96,11 @@ def message_received(
         account=account,
         chat=current_chat,
         message=current_message,
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
     )
 
 

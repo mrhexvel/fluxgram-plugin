@@ -14,7 +14,7 @@ from fluxgram.ui import UI
 class ImportsTest(unittest.TestCase):
     def test_public_api_imports_without_client_runtime(self):
         self.assertEqual(fluxgram.API_VERSION, 2)
-        self.assertEqual(fluxgram.API_MINOR_VERSION, 4)
+        self.assertEqual(fluxgram.API_MINOR_VERSION, 5)
         self.assertIs(fluxgram.Tasks, fluxgram.tasks.Tasks)
         self.assertIs(fluxgram.Events, fluxgram.events.Events)
         self.assertIs(fluxgram.ChatInfo, fluxgram.models.ChatInfo)

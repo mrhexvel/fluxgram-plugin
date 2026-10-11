@@ -70,6 +70,24 @@ class MessageReceivedEvent:
     account: int
     chat: ChatInfo
     message: MessageInfo
+    context: EventContext | None = None
+
+    def __post_init__(self):
+        if self.context is not None:
+            if not isinstance(self.context, EventContext):
+                raise TypeError("Event context must be an EventContext")
+
+            if self.context.account != self.account:
+                raise ValueError("Event account must match its context")
+
+            if not isinstance(self.chat, ChatInfo):
+                raise TypeError("Event chat must be a ChatInfo")
+
+            if not isinstance(self.message, MessageInfo):
+                raise TypeError("Event message must be a MessageInfo")
+
+            if self.chat.id != self.message.dialog_id:
+                raise ValueError("Chat and message dialog IDs must match")
 
     @property
     def dialog_id(self) -> int:
@@ -177,13 +195,20 @@ class Events:
             "plugin.setting_changed",
             PluginSettingChangedEvent,
         )
+        self.message_received = EventChannel(
+            self,
+            "message.received",
+            MessageReceivedEvent,
+        )
         self._typed_channels = {
             PluginSettingChangedEvent: self.plugin_setting_changed,
+            MessageReceivedEvent: self.message_received,
         }
         self._typed_subscriptions = []
         self._typed_host = None
         self._typed_generation = None
         self._typed_closed = False
+        self._message_delivery_active = False
         self._typed_error_handler = lambda name, error: None
         self._typed_lock = Lock()
 
@@ -200,6 +225,10 @@ class Events:
 
             self._typed_host = host
             self._typed_generation = generation
+
+            if self._has_message_subscriptions_locked():
+                host.setMessageReceivedSubscriptionActive(generation, True)
+                self._message_delivery_active = True
 
         self._legacy_port.bind_runtime(host, generation)
 
@@ -233,6 +262,22 @@ class Events:
 
             subscription = EventSubscription(self, channel, callback, context)
             self._typed_subscriptions.append(subscription)
+
+            if (
+                    channel is self.message_received
+                    and self._typed_host is not None
+                    and not self._message_delivery_active
+            ):
+                try:
+                    self._typed_host.setMessageReceivedSubscriptionActive(
+                        self._typed_generation,
+                        True,
+                    )
+                    self._message_delivery_active = True
+                except BaseException:
+                    self._typed_subscriptions.remove(subscription)
+                    raise
+
             return subscription
 
     def _remove(self, subscription: EventSubscription) -> None:
@@ -240,11 +285,25 @@ class Events:
             if subscription in self._typed_subscriptions:
                 self._typed_subscriptions.remove(subscription)
 
+            if (
+                    subscription.channel is self.message_received
+                    and self._message_delivery_active
+                    and not self._has_message_subscriptions_locked()
+            ):
+                self._typed_host.setMessageReceivedSubscriptionActive(
+                    self._typed_generation,
+                    False,
+                )
+                self._message_delivery_active = False
+
     def _dispatch(self, event: Any) -> None:
         channel = self._typed_channels.get(type(event))
 
         if channel is None:
             raise TypeError(f"Unsupported typed event: {type(event).__name__}")
+
+        if not isinstance(event.context, EventContext):
+            raise TypeError("Typed events require an EventContext")
 
         with self._typed_lock:
             if not self._active_locked():
@@ -281,6 +340,14 @@ class Events:
                 self._typed_closed = True
                 subscriptions = tuple(self._typed_subscriptions)
                 self._typed_subscriptions.clear()
+
+                if self._message_delivery_active:
+                    self._typed_host.setMessageReceivedSubscriptionActive(
+                        self._typed_generation,
+                        False,
+                    )
+                    self._message_delivery_active = False
+
                 self._typed_host = None
                 self._typed_generation = None
 
@@ -303,4 +370,11 @@ class Events:
             not self._typed_closed
             and self._typed_host is not None
             and self._typed_host.isGenerationActive(self._typed_generation)
+        )
+
+    def _has_message_subscriptions_locked(self) -> bool:
+        return any(
+            subscription.channel is self.message_received
+            and not subscription._closed
+            for subscription in self._typed_subscriptions
         )

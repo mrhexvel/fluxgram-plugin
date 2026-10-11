@@ -51,7 +51,7 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 4
+API_MINOR_VERSION = 5
 
 __all__ = [
     "Plugin",

@@ -12,6 +12,19 @@ The public package contains plugin-facing models, facades, settings, and UI cont
 
 `Plugin` instances are owned by FluxGram and have a single-use lifecycle. Runtime-backed APIs are active after binding and become permanently inactive during unload. UI features are independent services composed with the plugin's `UI` context rather than methods added to the context itself.
 
+Typed observational events run sequentially on the plugin executor. They carry immutable account, owner, and runtime-generation context, use the host's bounded event queue, and are automatically unsubscribed during unload.
+
+```python
+class PluginEntry(Plugin):
+    def on_load(self):
+        self.events.message_received.subscribe(self.on_message_received)
+
+    def on_message_received(self, event: MessageReceivedEvent):
+        self.log(f"Received {event.message_id} in {event.dialog_id}")
+```
+
+The string-based `message.received` subscription remains available temporarily for compatibility and runs on the UI thread. Do not subscribe through both APIs for the same work. `notification.received` is a separate synchronous interception contract and is not replaced by the observational channel.
+
 ```python
 from fluxgram import MessageReceivedEvent, Plugin, SwitchSetting
 from fluxgram.ui import Notifications
