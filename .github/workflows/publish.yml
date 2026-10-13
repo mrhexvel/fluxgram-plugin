@@ -8,7 +8,7 @@ on:
       tag:
         description: GitHub release tag to publish
         required: true
-        default: v2.0.0
+        default: v2.10.0
 
 permissions:
   contents: read
@@ -16,10 +16,11 @@ permissions:
 jobs:
   publish:
     name: Publish release assets to PyPI
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/fluxgram-sdk
+      url: https://pypi.org/p/fluxgram-plugin
     permissions:
       contents: read
       id-token: write
@@ -55,8 +56,8 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           version="${RELEASE_TAG#v}"
-          test -f "dist/fluxgram_sdk-$version-py3-none-any.whl"
-          test -f "dist/fluxgram_sdk-$version.tar.gz"
+          test -f "dist/fluxgram_plugin-$version-py3-none-any.whl"
+          test -f "dist/fluxgram_plugin-$version.tar.gz"
           test "$(find dist -type f | wc -l | tr -d ' ')" = "2"
 
       - name: Publish distributions

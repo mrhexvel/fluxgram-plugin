@@ -1,10 +1,23 @@
-# FluxGram SDK
+# FluxGram Plugin SDK
 
 Public Python interfaces, models, and typing information for FluxGram plugins.
+
+Install the development package with `pip install fluxgram-plugin`. Python imports remain under `fluxgram`.
+
+The distribution was previously published as `fluxgram-sdk`. Do not install both names in one environment because both distributions provide the same `fluxgram` package. Migrate explicitly:
+
+```sh
+python3 -m pip uninstall fluxgram-sdk
+python3 -m pip install fluxgram-plugin
+```
 
 The package can be imported on CPython 3.11 or newer for development and static analysis. Runtime services require the Android client and are provided by FluxGram through Chaquopy.
 
 Do not include this package in a `.fgplugin` archive. FluxGram provides the matching SDK at runtime.
+
+Plugins are trusted in-process code. FluxGram does not sandbox Python plugins, and a plugin can bypass SDK facades through Java and other process APIs. Lifecycle checks, quotas, immutable models, and host-managed services are compatibility and reliability contracts, not security restrictions. Install and run only code whose source and publisher you trust.
+
+Installing a plugin imports its entrypoint for migration checks even when regular runtime enable is off. Trust a package before installation.
 
 ## Architecture
 
@@ -31,7 +44,7 @@ class PluginEntry(Plugin):
         self.log(f"Received {event.message_id} in {event.dialog_id}")
 ```
 
-The string-based `message.received` subscription remains available temporarily for compatibility and runs on the UI thread. Do not subscribe through both APIs for the same work. `notification.received` is a separate synchronous interception contract and is not replaced by the observational channel.
+The string-based `message.received` subscription is a legacy compatibility API and runs on the UI thread. Do not subscribe through both APIs for the same work. `notification.received` is a separate legacy synchronous interception contract and is not replaced by the observational channel.
 
 ```python
 from fluxgram import MessageReceivedEvent, Plugin, SwitchSetting
@@ -94,7 +107,7 @@ The harness also records navigation and notification calls, provides a fake chat
 
 ## Testing storage migrations
 
-The test runtime includes a persistent namespaced storage backend. It supports typed global and account-owner values, JSON, atomic transactions, quotas, schema migrations, rollback, and owner-change checks.
+The test runtime includes a persistent namespaced storage backend. It supports typed global and account-owner values, JSON, atomic transactions, quotas, schema migrations, rollback, and owner-change checks. Namespaces and quotas define correct use of the managed storage facade; they do not isolate a full-trust plugin from the application process.
 
 ```python
 from fluxgram import Plugin
@@ -139,7 +152,7 @@ def on_stored(self, result):
 
 `submit` returns a `StorageTask`. Queued tasks are cancelled on unload, stale-generation completions are suppressed, and queue saturation is reported as `StorageQueueFullError` in the task result. Plugins which rely on the Android backend must require host SDK 2.1 or newer.
 
-Host SDK 2.2 adds private binary files to the same bounded storage service. Logical paths are validated relative names and never expose an Android filesystem path. Global and captured account-owner scopes are separate:
+Host SDK 2.2 adds private binary files to the same bounded storage service. Logical paths are validated relative names and the facade does not expose an Android filesystem path. Global and captured account-owner scopes are separate:
 
 ```python
 self.storage.global_files.write_bytes("cache/state.bin", payload)
@@ -180,3 +193,5 @@ self.events.plugin_setting_changed.subscribe(
 ```
 
 `PluginSettingChangedEvent` includes the account, owner and runtime generation captured when the setting changed. Callback return values are ignored, and one failing subscriber does not prevent delivery to the others. Plugins which use typed events must require host SDK 2.4 or newer.
+
+Later channels require the minor which introduced their production host path: `message_received` requires 2.5, `message_edited` 2.6, `message_deleted` 2.7, `chat_opened` and `chat_closed` 2.8, and application lifecycle events 2.9.
