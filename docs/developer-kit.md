@@ -15,7 +15,14 @@ Set `JAVA_HOME` and `ANDROID_SDK_ROOT`, or pass explicit paths to the commands.
 
 ## Install
 
-From the `devkit` directory:
+Install the published developer kit:
+
+```sh
+python3 -m pip install fluxgram-plugin-devkit
+fluxgram-plugin doctor
+```
+
+To install the current checkout instead, run from the `devkit` directory:
 
 ```sh
 python3 -m pip install .

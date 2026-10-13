@@ -2,4 +2,9 @@
 
 Installable command-line tools and Java API artifacts for building external FluxGram plugins.
 
+```sh
+python3 -m pip install fluxgram-plugin-devkit
+fluxgram-plugin doctor
+```
+
 See the [developer kit guide](https://github.com/mrhexvel/fluxgram-plugin/blob/main/docs/developer-kit.md) for requirements, trust boundaries, project format, commands, and testing guidance.
