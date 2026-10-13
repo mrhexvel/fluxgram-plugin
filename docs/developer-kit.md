@@ -46,7 +46,7 @@ The template is intentionally a lifecycle example rather than a ready-made visua
 
 `fluxgram-plugin.toml` separates package metadata from source locations. `python.files` and `assets.files` are archive-relative allowlists under their corresponding roots. Java source directories are compiled recursively.
 
-`min_sdk_minor` declares the oldest Python host API used by the plugin. `java.min_api_minor` declares the oldest Java API used by the Java module. The bundled artifact provides Python host API 2.9 metadata and Java API 1.19. Lower a minimum only after testing against that older client API.
+`min_sdk_minor` declares the oldest Python host API used by the plugin. `java.min_api_minor` declares the oldest Java API used by the Java module. The bundled artifact provides Python host API 2.9 metadata and Java API 1.20. Lower a minimum only after testing against that older client API.
 
 Schema 3 still requires a root Python `PluginEntry`; Java-only packages are not supported. `declared_capabilities` is historical metadata and does not grant or restrict process access. `access` is generated as `full` because no sandboxed mode exists.
 

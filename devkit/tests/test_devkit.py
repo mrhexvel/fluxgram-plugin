@@ -128,7 +128,7 @@ class DevkitTest(unittest.TestCase):
     def test_bundled_java_api_artifact_is_valid(self):
         artifact, metadata = api_artifact()
         self.assertTrue(artifact.is_file())
-        self.assertEqual(metadata["api_minor"], 19)
+        self.assertEqual(metadata["api_minor"], 20)
 
     def test_rejects_dex_that_bundles_host_class(self):
         data = self.dex_fixture("Lorg/telegram/copied/HostClass;")
