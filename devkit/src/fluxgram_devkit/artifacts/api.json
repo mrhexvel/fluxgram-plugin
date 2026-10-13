@@ -5,6 +5,6 @@
   "compile_sdk": 36,
   "sha256": "fda3bee93457b7190e6adc6edba2a967404e8a4b05281d3caaa74394c4581577",
   "source_sha256": "8364d67965c1bde0ddb6dae8183bd829327c5a35dbc0ea2ac08b36cfcdc9f61f",
-  "host_validator_sha256": "af8f83c0e9a0190f9ddf864cf6bbab687bc6603559c7294890ba02ff6ad79746",
+  "host_validator_sha256": "4b58678bbeef01b21b7d6a9b681a667f23166e9a7443716bdc7dd8d7924a7725",
   "source_commit": "b0e6b46ec"
 }

@@ -97,18 +97,32 @@ def validate_path(name, directory=False):
 def validate_manifest(manifest):
     require(isinstance(manifest, dict), "Manifest must be an object")
     base = {
-        "schema_version", "sdk_version", "min_sdk_minor", "id", "name", "version",
-        "description", "author", "entrypoint", "access", "declared_capabilities",
+        "schema_version", "id", "name", "version", "description", "author", "access",
+        "declared_capabilities",
     }
-    optional = {"icon", "java_module"}
+    python_fields = {"sdk_version", "min_sdk_minor", "entrypoint"}
+    optional = python_fields | {"icon", "java_module"}
     require(set(manifest).issubset(base | optional), "Unknown manifest field")
     require(base.issubset(manifest), "Missing manifest field")
     schema = validate_integer(manifest["schema_version"], "schema_version")
-    require(schema in {2, 3}, "Only manifest schema 2 and 3 are supported")
-    require(validate_integer(manifest["sdk_version"], "sdk_version") == SDK_VERSION,
-            f"SDK major must be {SDK_VERSION}")
-    require(validate_integer(manifest["min_sdk_minor"], "min_sdk_minor") <= SDK_MINOR,
-            f"Plugin requires a newer SDK than {SDK_VERSION}.{SDK_MINOR}")
+    require(schema in {2, 3, 4}, "Only manifest schema 2, 3 and 4 are supported")
+    present_python_fields = set(manifest) & python_fields
+
+    if schema in {2, 3}:
+        require(present_python_fields == python_fields, "Missing Python module field")
+    else:
+        require(not present_python_fields or present_python_fields == python_fields,
+                "Incomplete Python module")
+
+    if present_python_fields:
+        require(validate_integer(manifest["sdk_version"], "sdk_version") == SDK_VERSION,
+                f"SDK major must be {SDK_VERSION}")
+        require(validate_integer(manifest["min_sdk_minor"], "min_sdk_minor") <= SDK_MINOR,
+                f"Plugin requires a newer SDK than {SDK_VERSION}.{SDK_MINOR}")
+        entrypoint = validate_string(manifest["entrypoint"], "entrypoint", 128)
+        require(PYTHON_ENTRYPOINT.fullmatch(entrypoint) is not None
+                and entrypoint != "fluxgram:PluginEntry", "Invalid Python entrypoint")
+
     plugin_id = validate_string(manifest["id"], "id", 100)
     require(PLUGIN_ID.fullmatch(plugin_id) is not None and not plugin_id.startswith("fluxgram."),
             "Invalid or reserved plugin id")
@@ -117,9 +131,6 @@ def validate_manifest(manifest):
     require(PLUGIN_VERSION.fullmatch(version) is not None, "Version must have the form major.minor.patch")
     validate_string(manifest["description"], "description", 2000)
     validate_string(manifest["author"], "author", 100)
-    entrypoint = validate_string(manifest["entrypoint"], "entrypoint", 128)
-    require(PYTHON_ENTRYPOINT.fullmatch(entrypoint) is not None
-            and entrypoint != "fluxgram:PluginEntry", "Invalid Python entrypoint")
     require(manifest["access"] == "full", "Only full access is supported")
     capabilities = manifest["declared_capabilities"]
     require(isinstance(capabilities, list) and len(capabilities) <= 32,
@@ -136,7 +147,10 @@ def validate_manifest(manifest):
         require(icon.lower().endswith((".png", ".webp")), "Icon must be PNG or WebP")
 
     java = manifest.get("java_module")
-    require((schema == 3) == (java is not None), "java_module is required only for schema 3")
+    require(schema >= 3 or java is None, "java_module requires schema 3 or newer")
+    require(schema != 3 or java is not None, "java_module is required for schema 3")
+    require(schema != 4 or present_python_fields or java is not None,
+            "Manifest must declare a module")
 
     if java is not None:
         require(isinstance(java, dict), "java_module must be an object")
@@ -353,8 +367,9 @@ def inspect_archive(path):
 
     require("manifest.json" in contents, "Missing root manifest.json")
     manifest = validate_manifest(read_json(contents["manifest.json"]))
-    python_file = manifest["entrypoint"].split(":", 1)[0] + ".py"
-    require(python_file in contents, "Missing Python entrypoint file")
+    if "entrypoint" in manifest:
+        python_file = manifest["entrypoint"].split(":", 1)[0] + ".py"
+        require(python_file in contents, "Missing Python entrypoint file")
 
     if manifest.get("java_module") is not None:
         java = manifest["java_module"]
@@ -385,19 +400,29 @@ def load_project(project_dir):
         raise DevkitError("Invalid fluxgram-plugin.toml") from error
 
     require(set(config).issubset({"plugin", "python", "java", "assets"}), "Unknown project section")
-    require("plugin" in config and "python" in config, "Project requires plugin and python sections")
+    require("plugin" in config, "Project requires a plugin section")
     plugin = config["plugin"]
-    python = config["python"]
-    require(isinstance(plugin, dict) and isinstance(python, dict), "Invalid project section")
+    python = config.get("python")
+    java = config.get("java")
+    require(isinstance(plugin, dict), "Invalid plugin section")
+    require(python is not None or java is not None, "Project requires a python or java section")
+
+    if python is not None:
+        require(isinstance(python, dict), "Invalid python section")
+
     plugin_fields = {
         "id", "name", "version", "description", "author", "min_sdk_minor",
         "declared_capabilities", "icon",
     }
     require(set(plugin).issubset(plugin_fields), "Unknown plugin project field")
-    required_plugin = plugin_fields - {"icon"}
+    required_plugin = plugin_fields - {"icon", "min_sdk_minor"}
     require(required_plugin.issubset(plugin), "Missing plugin project field")
-    require(set(python) == {"root", "entrypoint", "files"}, "Invalid python project fields")
-    java = config.get("java")
+    require(("min_sdk_minor" in plugin) == (python is not None),
+            "min_sdk_minor is required only for Python projects")
+
+    if python is not None:
+        require(set(python) == {"root", "entrypoint", "files"}, "Invalid python project fields")
+
     assets = config.get("assets", {"root": "assets", "files": []})
     require(isinstance(assets, dict) and set(assets) == {"root", "files"}, "Invalid assets section")
 
@@ -407,18 +432,22 @@ def load_project(project_dir):
                 "Invalid java project fields")
 
     manifest = {
-        "schema_version": 3 if java is not None else 2,
-        "sdk_version": SDK_VERSION,
-        "min_sdk_minor": plugin["min_sdk_minor"],
+        "schema_version": 4,
         "id": plugin["id"],
         "name": plugin["name"],
         "version": plugin["version"],
         "description": plugin["description"],
         "author": plugin["author"],
-        "entrypoint": python["entrypoint"],
         "access": "full",
         "declared_capabilities": plugin["declared_capabilities"],
     }
+
+    if python is not None:
+        manifest.update({
+            "sdk_version": SDK_VERSION,
+            "min_sdk_minor": plugin["min_sdk_minor"],
+            "entrypoint": python["entrypoint"],
+        })
 
     if "icon" in plugin:
         manifest["icon"] = plugin["icon"]
@@ -433,7 +462,6 @@ def load_project(project_dir):
         }
 
     validate_manifest(manifest)
-    manifest.pop("java_module", None)
     return project_dir, config, manifest
 
 
@@ -602,7 +630,12 @@ def compile_java(project_dir, java_config, java_home, android_sdk, build_tools):
 
 def build_project(project_dir, output=None, java_home=None, android_sdk=None, build_tools=None):
     project_dir, config, manifest = load_project(project_dir)
-    files = list_files(project_dir, config["python"]["root"], config["python"]["files"])
+    files = []
+
+    if "python" in config:
+        files.extend(list_files(
+            project_dir, config["python"]["root"], config["python"]["files"]))
+
     assets = config.get("assets", {"root": "assets", "files": []})
     files.extend(list_files(project_dir, assets["root"], assets["files"]))
     java = config.get("java")

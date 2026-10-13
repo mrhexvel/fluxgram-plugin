@@ -1,8 +1,8 @@
 # FluxGram Plugin Developer Kit
 
-The developer kit creates schema 2 Python packages and schema 3 Python plus Java packages without copying either SDK into the plugin archive.
+The developer kit creates schema 4 Python-only, Java-only, and hybrid packages without copying either SDK into the plugin archive. It also validates existing schema 2 Python packages and schema 3 hybrid packages.
 
-Plugins run as trusted code inside the FluxGram process. They can access Android, Java, Telegram internals, files, and the network with the application's privileges. SDK facades and package validation are reliability and compatibility contracts, not a security sandbox. Installing a package imports its Python entrypoint for migration checks before normal plugin enable.
+Plugins run as trusted code inside the FluxGram process. They can access Android, Java, Telegram internals, files, and the network with the application's privileges. SDK facades and package validation are reliability and compatibility contracts, not a security sandbox. Installing a package with a Python module imports its entrypoint for migration checks before normal plugin enable. Java-only packages are validated without loading their DEX until enable.
 
 ## Requirements
 
@@ -44,11 +44,11 @@ The template is intentionally a lifecycle example rather than a ready-made visua
 
 ## Project file
 
-`fluxgram-plugin.toml` separates package metadata from source locations. `python.files` and `assets.files` are archive-relative allowlists under their corresponding roots. Java source directories are compiled recursively.
+`fluxgram-plugin.toml` separates package metadata from source locations. `python.files` and `assets.files` are archive-relative allowlists under their corresponding roots. Java source directories are compiled recursively. A project must declare `[python]`, `[java]`, or both. For Java-only packages, remove `[python]` and `plugin.min_sdk_minor`; no empty Python entrypoint is generated.
 
 `min_sdk_minor` declares the oldest Python host API used by the plugin. `java.min_api_minor` declares the oldest Java API used by the Java module. The bundled artifact provides Python host API 2.9 metadata and Java API 1.21. Lower a minimum only after testing against that older client API.
 
-Schema 3 still requires a root Python `PluginEntry`; Java-only packages are not supported. `declared_capabilities` is historical metadata and does not grant or restrict process access. `access` is generated as `full` because no sandboxed mode exists.
+Schema 4 uses the existing root Python `PluginEntry` fields only when `[python]` is present and the existing `java_module` object only when `[java]` is present. Java-only packages currently have no declarative settings schema; their settings page is empty. `declared_capabilities` is historical metadata and does not grant or restrict process access. `access` is generated as `full` because no sandboxed mode exists.
 
 ## Commands
 

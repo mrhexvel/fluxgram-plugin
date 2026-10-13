@@ -1,11 +1,19 @@
 import hashlib
+import json
 from pathlib import Path
 import struct
 import tempfile
 import unittest
 import zipfile
 
-from fluxgram_devkit.cli import DevkitError, api_artifact, initialize_project, inspect_archive, zip_bytes
+from fluxgram_devkit.cli import (
+    DevkitError,
+    api_artifact,
+    initialize_project,
+    inspect_archive,
+    load_project,
+    zip_bytes,
+)
 
 
 class DevkitTest(unittest.TestCase):
@@ -61,6 +69,68 @@ class DevkitTest(unittest.TestCase):
             result = inspect_archive(package)
             self.assertEqual(result["id"], "example.test_plugin")
             self.assertEqual(result["sha256"], hashlib.sha256(package.read_bytes()).hexdigest())
+
+    def test_validates_schema_four_module_compositions(self):
+        data = self.dex_fixture()
+        java = {
+            "path": "java/module.dex",
+            "entrypoint": "example.Module",
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "api_version": 1,
+            "min_api_minor": 21,
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory) / "plugin.fgplugin"
+            hybrid = self.manifest(schema_version=4, java_module=java)
+            package.write_bytes(self.package(hybrid, [("java/module.dex", data)]))
+            inspect_archive(package)
+
+            java_only = {
+                key: value
+                for key, value in self.manifest(schema_version=4, java_module=java).items()
+                if key not in {"sdk_version", "min_sdk_minor", "entrypoint"}
+            }
+            package.write_bytes(zip_bytes([
+                ("java/module.dex", data),
+                ("manifest.json", (json.dumps(java_only) + "\n").encode()),
+            ]))
+            inspect_archive(package)
+
+            for field in ("sdk_version", "min_sdk_minor", "entrypoint"):
+                partial = java_only.copy()
+                partial[field] = self.manifest()[field]
+                package.write_bytes(zip_bytes([
+                    ("java/module.dex", data),
+                    ("manifest.json", (json.dumps(partial) + "\n").encode()),
+                ]))
+
+                with self.assertRaises(DevkitError):
+                    inspect_archive(package)
+
+    def test_loads_java_only_project_without_python_metadata(self):
+        project = """[plugin]
+id = "example.java_only"
+name = "Java Only"
+version = "1.0.0"
+description = "Java-only fixture"
+author = "Tester"
+declared_capabilities = []
+
+[java]
+sources = ["java/src"]
+entrypoint = "example.Module"
+min_api_minor = 21
+"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "fluxgram-plugin.toml").write_text(project)
+            _, config, manifest = load_project(root)
+            self.assertNotIn("python", config)
+            self.assertEqual(manifest["schema_version"], 4)
+            self.assertNotIn("entrypoint", manifest)
+            self.assertNotIn("sdk_version", manifest)
 
     def test_rejects_newer_sdk_and_bundled_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
