@@ -1,0 +1,22 @@
+[plugin]
+id = "example.hello_plugin"
+name = "Hello Plugin"
+version = "1.0.0"
+description = "Minimal FluxGram Python and Java plugin"
+author = "Plugin Author"
+min_sdk_minor = 9
+declared_capabilities = []
+
+[python]
+root = "plugin"
+entrypoint = "main:PluginEntry"
+files = ["main.py"]
+
+[java]
+sources = ["java/src"]
+entrypoint = "example.plugin.Module"
+min_api_minor = 19
+
+[assets]
+root = "assets"
+files = []

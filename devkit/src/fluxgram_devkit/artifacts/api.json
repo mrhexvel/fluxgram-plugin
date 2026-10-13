@@ -1,0 +1,10 @@
+{
+  "api_version": 1,
+  "api_minor": 19,
+  "min_sdk": 24,
+  "compile_sdk": 36,
+  "sha256": "a2856a6ffa4ce33fb7617224fd911e411032ad68200d25779ab1d809176bde62",
+  "source_sha256": "163945fc56726f8b35b1f83951bcf13b454a9adb41850ff09e8a6224fe5a6258",
+  "host_validator_sha256": "5eb46b9c16c0b306d9ab20154dd01cc3037b18f5c71725e9bda7ce4f45dff066",
+  "source_commit": "8147531c0"
+}

@@ -22,3 +22,27 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: PYTHONPATH=src python -B -m unittest discover -s tests
       - run: uv build
+      - run: PYTHONPATH=src python -B -m unittest discover -s tests
+        working-directory: devkit
+      - run: uv build
+        working-directory: devkit
+
+  java-devkit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: python -m pip install ./devkit
+      - run: fluxgram-plugin doctor --build-tools 36.0.0
+      - run: fluxgram-plugin init "$RUNNER_TEMP/hello-plugin"
+      - run: fluxgram-plugin build "$RUNNER_TEMP/hello-plugin" --build-tools 36.0.0
+      - run: fluxgram-plugin validate "$RUNNER_TEMP/hello-plugin/dist/example.hello_plugin-1.0.0.fgplugin"
