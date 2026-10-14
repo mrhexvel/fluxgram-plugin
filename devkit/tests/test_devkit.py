@@ -142,7 +142,7 @@ class DevkitTest(unittest.TestCase):
             "sha256": hashlib.sha256(data).hexdigest(),
             "api_version": 1,
             "min_api_minor": 21,
-            "host_fingerprint": "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d",
+            "host_fingerprint": "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6",
         }
 
         with tempfile.TemporaryDirectory() as directory:
@@ -269,7 +269,7 @@ min_api_minor = 21
         )
         self.assertEqual(
             metadata["host_fingerprint"],
-            "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d",
+            "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6",
         )
 
         with zipfile.ZipFile(artifact) as archive:
@@ -278,8 +278,10 @@ min_api_minor = 21
         self.assertEqual(classes, {
             "org/telegram/messenger/plugins/ComposerInputRendererExtensions.class",
             "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Factory.class",
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Surface.class",
             "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Renderer.class",
             "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Frame.class",
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions$ExpandedFrame.class",
             "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Result.class",
         })
 

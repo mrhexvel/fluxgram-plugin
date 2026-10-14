@@ -12,7 +12,7 @@ public final class Module implements JavaPluginModule {
 
     @Override
     public void onLoad(JavaPluginContext context) {
-        resource = ComposerInputRendererExtensions.register(context, Renderer::new);
+        resource = ComposerInputRendererExtensions.register(context, surface -> new Renderer());
         context.log("Composer Renderer loaded");
     }
 

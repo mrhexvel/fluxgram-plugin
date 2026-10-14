@@ -32,7 +32,7 @@ PYTHON_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*:PluginEntry")
 JAVA_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_$]*)+")
 HASH = re.compile(r"[a-f0-9]{64}")
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
-HOST_FINGERPRINT = "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d"
+HOST_FINGERPRINT = "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6"
 TEMPLATES = ("python", "java", "hybrid")
 
 
@@ -627,19 +627,34 @@ def host_stubs_artifact():
     contract = metadata["contract"]
     require(contract == {
         "id": "ui.chat.composer.input.native_draw",
-        "version": 1,
+        "version": 2,
         "mode": "replacement",
         "thread": "main",
         "abi": [
             "register(JavaPluginContext,Factory)->JavaPluginUiResource",
-            "Factory.create()->Renderer throws Exception",
+            "Factory.create(Surface)->Renderer throws Exception",
+            "Surface.getAccount()->int",
+            "Surface.getOwnerId()->long",
+            "Surface.getDialogId()->long",
+            "Surface.getGeometry()->ComposerGeometry",
+            "Surface.isActive()->boolean",
+            "Surface.requestFrame()->void",
+            "Renderer.getCapabilities()->int",
+            "Renderer.onInput(ComposerInput)->void throws Exception",
+            "Renderer.onTextLayoutChanged(ComposerTextLayoutChange)->void throws Exception",
+            "Renderer.onSend(ComposerSendEvent)->void throws Exception",
+            "Renderer.onFrame(long)->boolean throws Exception",
             "Renderer.draw(Frame)->Result throws Exception",
+            "Renderer.drawExpanded(ExpandedFrame)->void throws Exception",
             "Renderer.close()->void throws Exception",
-            "Frame.getView()->View",
             "Frame.getCanvas()->Canvas",
+            "Frame.getGeometry()->ComposerGeometry",
             "Frame.getWidth()->int",
             "Frame.getHeight()->int",
             "Frame.drawNative()->void",
+            "ExpandedFrame.getCanvas()->Canvas",
+            "ExpandedFrame.getGeometry()->ComposerGeometry",
+            "ExpandedFrame.getBounds()->ComposerExpandedBounds",
             "Result=COMMIT|FALLBACK",
         ],
     }, "Invalid host stubs contract")
