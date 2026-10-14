@@ -7,7 +7,19 @@ import fluxgram
 import fluxgram.models
 import fluxgram.testing
 import fluxgram.ui
-from fluxgram import Plugin, StorageResult, StorageTask, SwitchSetting
+from fluxgram import (
+    Plugin,
+    Select,
+    SelectSetting,
+    Slider,
+    SliderSetting,
+    StorageResult,
+    StorageTask,
+    Switch,
+    SwitchSetting,
+    Text,
+    TextSetting,
+)
 from fluxgram.storage import Storage, StorageMigration
 from fluxgram.testing import PluginHarness
 from fluxgram.ui import UI
@@ -17,13 +29,13 @@ class ImportsTest(unittest.TestCase):
     def test_distribution_metadata(self):
         metadata = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
-        self.assertEqual(metadata["project"]["version"], "2.10.0")
+        self.assertEqual(metadata["project"]["version"], "2.11.0")
         self.assertEqual(metadata["project"]["urls"]["Repository"],
                          "https://github.com/mrhexvel/fluxgram-plugin")
 
     def test_public_api_imports_without_client_runtime(self):
         self.assertEqual(fluxgram.API_VERSION, 2)
-        self.assertEqual(fluxgram.API_MINOR_VERSION, 9)
+        self.assertEqual(fluxgram.API_MINOR_VERSION, 10)
         self.assertIs(
             fluxgram.ApplicationBackgroundedEvent,
             fluxgram.events.ApplicationBackgroundedEvent,
@@ -43,7 +55,11 @@ class ImportsTest(unittest.TestCase):
             set(fluxgram.ui.__all__),
             {"UI", "Bulletins", "Navigation", "Notifications"},
         )
-        self.assertFalse(SwitchSetting("enabled", "Enabled").default)
+        self.assertFalse(Switch("enabled", "Enabled").default)
+        self.assertIs(SwitchSetting, Switch)
+        self.assertIs(SelectSetting, Select)
+        self.assertIs(SliderSetting, Slider)
+        self.assertIs(TextSetting, Text)
         self.assertFalse(UI()._active())
         self.assertEqual(PluginHarness.__module__, "fluxgram.testing.harness")
         self.assertEqual(Storage.__module__, "fluxgram.storage")

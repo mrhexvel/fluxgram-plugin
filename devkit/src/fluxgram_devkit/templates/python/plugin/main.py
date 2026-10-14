@@ -1,10 +1,10 @@
-from fluxgram import Plugin, SwitchSetting
+from fluxgram import Plugin, Switch
 
 
 class PluginEntry(Plugin):
 
     settings_schema = (
-        SwitchSetting("enabled", "Enabled", default=True),
+        Switch("enabled", "Enabled", default=True, icon="settings"),
     )
 
     def on_load(self):

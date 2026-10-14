@@ -12,7 +12,7 @@ from ..events import (
 )
 from ..models import ChatInfo, ChatNotifications, NotificationOverride
 from ..plugin import Plugin
-from ..settings import SelectSetting, SliderSetting, SwitchSetting, TextSetting
+from ..settings import Select, Slider, Switch, Text
 from ..storage import Storage, StorageMigrationError, _migrate_plugin_storage
 from .storage import HarnessStorageBackend
 from .scheduler import HarnessTaskScheduler
@@ -510,17 +510,17 @@ class HarnessSettings:
 
     @staticmethod
     def _validate(item, value: Any) -> None:
-        if isinstance(item, SwitchSetting):
+        if isinstance(item, Switch):
             valid = type(value) is bool
-        elif isinstance(item, SelectSetting):
+        elif isinstance(item, Select):
             valid = isinstance(value, str) and value in dict(item.options)
-        elif isinstance(item, SliderSetting):
+        elif isinstance(item, Slider):
             valid = (
                 type(value) is int
                 and item.minimum <= value <= item.maximum
                 and (value - item.minimum) % item.step == 0
             )
-        elif isinstance(item, TextSetting):
+        elif isinstance(item, Text):
             valid = (
                 isinstance(value, str)
                 and len(value) <= item.max_length

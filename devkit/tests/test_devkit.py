@@ -39,7 +39,7 @@ class DevkitTest(unittest.TestCase):
         value = {
             "schema_version": 2,
             "sdk_version": 2,
-            "min_sdk_minor": 9,
+            "min_sdk_minor": 10,
             "id": "example.test_plugin",
             "name": "Test Plugin",
             "version": "1.0.0",
@@ -194,7 +194,7 @@ min_api_minor = 21
     def test_rejects_newer_sdk_and_bundled_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
             package = Path(directory) / "plugin.fgplugin"
-            package.write_bytes(self.package(self.manifest(min_sdk_minor=10)))
+            package.write_bytes(self.package(self.manifest(min_sdk_minor=11)))
 
             with self.assertRaises(DevkitError):
                 inspect_archive(package)
@@ -210,7 +210,7 @@ min_api_minor = 21
 
     def test_rejects_duplicate_json_fields(self):
         data = (b'{"schema_version":2,"schema_version":2,"sdk_version":2,'
-                b'"min_sdk_minor":9,"id":"example.test","name":"Test",'
+                 b'"min_sdk_minor":10,"id":"example.test","name":"Test",'
                 b'"version":"1.0.0","description":"Test","author":"Test",'
                 b'"entrypoint":"main:PluginEntry","access":"full",'
                 b'"declared_capabilities":[]}')

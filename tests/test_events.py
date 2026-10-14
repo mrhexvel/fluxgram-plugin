@@ -15,7 +15,7 @@ from fluxgram import (
     MessageReceivedEvent,
     Plugin,
     PluginSettingChangedEvent,
-    SwitchSetting,
+    Switch,
 )
 from fluxgram.testing import (
     PluginHarness,
@@ -46,7 +46,7 @@ class EventPlugin(Plugin):
 
 
 class SettingPlugin(EventPlugin):
-    settings_schema = (SwitchSetting("enabled", "Enabled"),)
+    settings_schema = (Switch("enabled", "Enabled"),)
 
     def on_load(self):
         self.order = []

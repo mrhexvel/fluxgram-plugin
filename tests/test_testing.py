@@ -2,10 +2,10 @@ import unittest
 
 from fluxgram import (
     Plugin,
-    SelectSetting,
-    SliderSetting,
-    SwitchSetting,
-    TextSetting,
+    Select,
+    Slider,
+    Switch,
+    Text,
 )
 from fluxgram.models import ChatInfo, MessageInfo
 from fluxgram.testing import (
@@ -28,15 +28,15 @@ from fluxgram.ui import Bulletins, Navigation, Notifications
 
 class ExamplePlugin(Plugin):
     settings_schema = (
-        SwitchSetting("enabled", "Enabled", default=True),
-        SelectSetting(
+        Switch("enabled", "Enabled", default=True),
+        Select(
             "mode",
             "Mode",
             options=(("short", "Short"), ("full", "Full")),
             default="short",
         ),
-        SliderSetting("limit", "Limit", minimum=1, maximum=9, default=3, step=2),
-        TextSetting("prefix", "Prefix", default="Test", max_length=12),
+        Slider("limit", "Limit", minimum=1, maximum=9, default=3, step=2),
+        Text("prefix", "Prefix", default="Test", max_length=12),
     )
 
     def __init__(self, plugin_id):

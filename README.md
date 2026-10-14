@@ -47,13 +47,13 @@ class PluginEntry(Plugin):
 The string-based `message.received` subscription is a legacy compatibility API and runs on the UI thread. Do not subscribe through both APIs for the same work. `notification.received` is a separate legacy synchronous interception contract and is not replaced by the observational channel.
 
 ```python
-from fluxgram import MessageReceivedEvent, Plugin, SwitchSetting
+from fluxgram import MessageReceivedEvent, Plugin, Switch
 from fluxgram.ui import Notifications
 
 
 class PluginEntry(Plugin):
     settings_schema = (
-        SwitchSetting("enabled", "Enabled", default=True),
+        Switch("enabled", "Enabled", default=True, icon="notifications"),
     )
 
     def on_load(self):
@@ -66,6 +66,13 @@ class PluginEntry(Plugin):
 
         return False
 ```
+
+Settings support the optional semantic icons `adjustments`, `auto_delete`, `blur`,
+`clear`, `colors`, `copy`, `curve`, `customize`, `delete`, `edit`, `emoji`,
+`favorite`, `file`, `flip`, `link`, `list`, `message`, `notifications`, `open`,
+`particles`, `reset`, `retry`, `select`, `send`, `settings`, `speed`, `translate`,
+and `zoom_in`. The legacy `SwitchSetting`, `SelectSetting`, `SliderSetting`, and
+`TextSetting` names remain aliases for existing plugins.
 
 ## Development
 

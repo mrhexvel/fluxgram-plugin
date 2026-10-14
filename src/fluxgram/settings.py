@@ -1,6 +1,38 @@
+import re
 from dataclasses import dataclass
 from typing import Callable
-import re
+
+
+_SETTING_ICONS = frozenset((
+    "adjustments",
+    "auto_delete",
+    "blur",
+    "clear",
+    "colors",
+    "copy",
+    "curve",
+    "customize",
+    "delete",
+    "edit",
+    "emoji",
+    "favorite",
+    "file",
+    "flip",
+    "link",
+    "list",
+    "message",
+    "notifications",
+    "open",
+    "particles",
+    "reset",
+    "retry",
+    "select",
+    "send",
+    "settings",
+    "speed",
+    "translate",
+    "zoom_in",
+))
 
 
 def _validate_common(item):
@@ -19,15 +51,19 @@ def _validate_common(item):
     if item.on_changed is not None and not callable(item.on_changed):
         raise TypeError("Setting on_changed must be callable")
 
+    if not isinstance(item.icon, str) or item.icon and item.icon not in _SETTING_ICONS:
+        raise ValueError("Invalid setting icon")
+
 
 @dataclass(frozen=True)
-class SwitchSetting:
+class Switch:
     key: str
     title: str
     default: bool = False
     description: str = ""
     label: str = ""
     on_changed: Callable | None = None
+    icon: str = ""
 
     def __post_init__(self):
         _validate_common(self)
@@ -37,7 +73,7 @@ class SwitchSetting:
 
 
 @dataclass(frozen=True)
-class SelectSetting:
+class Select:
     key: str
     title: str
     options: tuple[tuple[str, str], ...]
@@ -45,6 +81,7 @@ class SelectSetting:
     description: str = ""
     label: str = ""
     on_changed: Callable | None = None
+    icon: str = ""
 
     def __post_init__(self):
         _validate_common(self)
@@ -74,7 +111,7 @@ class SelectSetting:
 
 
 @dataclass(frozen=True)
-class SliderSetting:
+class Slider:
     key: str
     title: str
     minimum: int
@@ -85,6 +122,7 @@ class SliderSetting:
     description: str = ""
     label: str = ""
     on_changed: Callable | None = None
+    icon: str = ""
 
     def __post_init__(self):
         _validate_common(self)
@@ -106,7 +144,7 @@ class SliderSetting:
 
 
 @dataclass(frozen=True)
-class TextSetting:
+class Text:
     key: str
     title: str
     default: str = ""
@@ -115,6 +153,7 @@ class TextSetting:
     description: str = ""
     label: str = ""
     on_changed: Callable | None = None
+    icon: str = ""
 
     def __post_init__(self):
         _validate_common(self)
@@ -126,17 +165,23 @@ class TextSetting:
             raise ValueError("Invalid text default")
 
         if "\n" in self.default or "\r" in self.default:
-            raise ValueError("TextSetting only supports a single line")
+            raise ValueError("Text only supports a single line")
 
         if not isinstance(self.placeholder, str) or len(self.placeholder) > 120:
             raise ValueError("Invalid text placeholder")
+
+
+SwitchSetting = Switch
+SelectSetting = Select
+SliderSetting = Slider
+TextSetting = Text
 
 
 class Settings:
     def __init__(self, schema):
         schema = tuple(schema)
 
-        if len(schema) > 64 or any(not isinstance(item, (SwitchSetting, SelectSetting, SliderSetting, TextSetting)) for item in schema):
+        if len(schema) > 64 or any(not isinstance(item, (Switch, Select, Slider, Text)) for item in schema):
             raise ValueError("Invalid settings schema")
 
         self._schema = {item.key: item for item in schema}
@@ -157,14 +202,14 @@ class Settings:
         if self._host is None or not self._host.isGenerationActive(self._generation):
             raise RuntimeError("Plugin settings are inactive")
 
-        if isinstance(item, SwitchSetting):
+        if isinstance(item, Switch):
             return bool(self._host.readBooleanSetting(item.key, item.default))
 
-        if isinstance(item, SelectSetting):
+        if isinstance(item, Select):
             value = str(self._host.readStringSetting(item.key, item.default))
             return value if value in dict(item.options) else item.default
 
-        if isinstance(item, TextSetting):
+        if isinstance(item, Text):
             value = str(self._host.readStringSetting(item.key, item.default))
             return value if len(value) <= item.max_length and "\n" not in value and "\r" not in value else item.default
 
@@ -193,12 +238,15 @@ class Settings:
             data = {"key": item.key, "title": item.title, "default": item.default,
                     "description": item.description, "label": item.label.strip()}
 
-            if isinstance(item, SelectSetting):
+            if item.icon:
+                data["icon"] = item.icon
+
+            if isinstance(item, Select):
                 data.update(type="select", options=item.options)
-            elif isinstance(item, SliderSetting):
+            elif isinstance(item, Slider):
                 data.update(type="slider", minimum=item.minimum, maximum=item.maximum,
                             step=item.step, unit=item.unit)
-            elif isinstance(item, TextSetting):
+            elif isinstance(item, Text):
                 data.update(type="text", placeholder=item.placeholder, max_length=item.max_length)
             else:
                 data["type"] = "switch"

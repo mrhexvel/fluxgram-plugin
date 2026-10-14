@@ -1,5 +1,14 @@
 from .plugin import Plugin
-from .settings import SwitchSetting, SelectSetting, SliderSetting, TextSetting
+from .settings import (
+    Select,
+    SelectSetting,
+    Slider,
+    SliderSetting,
+    Switch,
+    SwitchSetting,
+    Text,
+    TextSetting,
+)
 from .events import (
     ApplicationBackgroundedEvent,
     ApplicationForegroundedEvent,
@@ -57,10 +66,14 @@ from .models import (
 )
 
 API_VERSION = 2
-API_MINOR_VERSION = 9
+API_MINOR_VERSION = 10
 
 __all__ = [
     "Plugin",
+    "Switch",
+    "Select",
+    "Slider",
+    "Text",
     "ApplicationBackgroundedEvent",
     "ApplicationForegroundedEvent",
     "SwitchSetting",
