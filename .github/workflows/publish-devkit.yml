@@ -8,7 +8,7 @@ on:
       tag:
         description: GitHub devkit release tag to publish
         required: true
-        default: devkit-v1.0.0
+        default: devkit-v1.3.0
 
 permissions:
   contents: read
