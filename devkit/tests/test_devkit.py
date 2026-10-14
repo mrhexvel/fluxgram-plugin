@@ -1,17 +1,23 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 from fluxgram_devkit.cli import (
     DevkitError,
     api_artifact,
+    build_project,
+    compile_java,
+    host_stubs_artifact,
     initialize_project,
     inspect_archive,
     load_project,
+    parser,
     zip_bytes,
 )
 
@@ -54,13 +60,33 @@ class DevkitTest(unittest.TestCase):
         files.extend(extra)
         return zip_bytes(files)
 
-    def test_initializes_template(self):
+    def test_initializes_templates(self):
         with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "plugin"
-            initialize_project(target)
-            self.assertTrue((target / "fluxgram-plugin.toml").is_file())
-            self.assertTrue((target / "plugin/main.py").is_file())
-            self.assertTrue((target / "java/src/example/plugin/Module.java").is_file())
+            root = Path(directory)
+
+            for template, sections, schema in (
+                    ("python", {"python"}, 4),
+                    ("java", {"java"}, 5),
+                    ("hybrid", {"python", "java"}, 4)):
+                target = root / template
+                initialize_project(target, template)
+                _, config, manifest = load_project(target)
+                self.assertEqual(set(config) & {"python", "java"}, sections)
+                self.assertEqual(manifest["schema_version"], schema)
+
+            default = root / "default"
+            initialize_project(default)
+            _, config, _ = load_project(default)
+            self.assertIn("python", config)
+            self.assertIn("java", config)
+
+    def test_init_and_new_default_to_hybrid(self):
+        for command in ("init", "new"):
+            arguments = parser().parse_args([command, "plugin"])
+            self.assertEqual(arguments.template, "hybrid")
+
+        arguments = parser().parse_args(["new", "plugin", "--template", "java"])
+        self.assertEqual(arguments.template, "java")
 
     def test_validates_python_package(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -104,6 +130,39 @@ class DevkitTest(unittest.TestCase):
                     ("java/module.dex", data),
                     ("manifest.json", (json.dumps(partial) + "\n").encode()),
                 ]))
+
+                with self.assertRaises(DevkitError):
+                    inspect_archive(package)
+
+    def test_validates_schema_five_host_fingerprint(self):
+        data = self.dex_fixture()
+        java = {
+            "path": "java/module.dex",
+            "entrypoint": "example.Module",
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "api_version": 1,
+            "min_api_minor": 21,
+            "host_fingerprint": "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d",
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory) / "plugin.fgplugin"
+            manifest = self.manifest(schema_version=5, java_module=java)
+            package.write_bytes(self.package(manifest, [("java/module.dex", data)]))
+            inspect_archive(package)
+
+            for fingerprint in (None, "A" * 64, "0" * 64):
+                invalid = java.copy()
+
+                if fingerprint is None:
+                    invalid.pop("host_fingerprint")
+                else:
+                    invalid["host_fingerprint"] = fingerprint
+
+                package.write_bytes(self.package(
+                    self.manifest(schema_version=5, java_module=invalid),
+                    [("java/module.dex", data)],
+                ))
 
                 with self.assertRaises(DevkitError):
                     inspect_archive(package)
@@ -199,6 +258,107 @@ min_api_minor = 21
         artifact, metadata = api_artifact()
         self.assertTrue(artifact.is_file())
         self.assertEqual(metadata["api_minor"], 21)
+
+    def test_bundled_host_stubs_are_minimal_and_reproducible(self):
+        artifact, metadata = host_stubs_artifact()
+        source = (artifact.parent / "host-stubs-src/org/telegram/messenger/plugins/"
+                  "ComposerInputRendererExtensions.java")
+        self.assertEqual(
+            hashlib.sha256(source.read_bytes()).hexdigest(),
+            metadata["source_sha256"],
+        )
+        self.assertEqual(
+            metadata["host_fingerprint"],
+            "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d",
+        )
+
+        with zipfile.ZipFile(artifact) as archive:
+            classes = {name for name in archive.namelist() if name.endswith(".class")}
+
+        self.assertEqual(classes, {
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions.class",
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Factory.class",
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Renderer.class",
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Frame.class",
+            "org/telegram/messenger/plugins/ComposerInputRendererExtensions$Result.class",
+        })
+
+    def test_java_classpaths_include_opt_in_host_stubs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory).resolve()
+            source = project / "java/src/example/Module.java"
+            source.parent.mkdir(parents=True)
+            source.write_text("package example; public class Module {}")
+            tools = project / "tools"
+            tools.mkdir()
+            javac = tools / "javac"
+            android = tools / "android.jar"
+            d8 = tools / "d8"
+            api, _ = api_artifact()
+            stubs, _ = host_stubs_artifact()
+            commands = []
+
+            def fake_run(command, label):
+                command = [Path(item) if isinstance(item, Path) else item for item in command]
+                commands.append((command, label))
+
+                if label == "javac":
+                    classes = Path(command[command.index("-d") + 1])
+                    target = classes / "example/Module.class"
+                    target.parent.mkdir(parents=True)
+                    target.write_bytes(b"class")
+                else:
+                    output = Path(command[command.index("--output") + 1])
+                    (output / "classes.dex").write_bytes(self.dex_fixture())
+
+            config = {
+                "sources": ["java/src"],
+                "entrypoint": "example.Module",
+                "min_api_minor": 21,
+                "host_stubs": True,
+            }
+
+            with patch("fluxgram_devkit.cli.find_java", return_value=javac), \
+                    patch("fluxgram_devkit.cli.find_android",
+                          return_value=(tools, android, tools, d8)), \
+                    patch("fluxgram_devkit.cli.run", side_effect=fake_run):
+                compile_java(project, config, None, None, None)
+
+            javac_classpath = commands[0][0][commands[0][0].index("-cp") + 1].split(os.pathsep)
+            d8_classpaths = [commands[1][0][index + 1]
+                             for index, value in enumerate(commands[1][0])
+                             if value == "--classpath"]
+            self.assertEqual(javac_classpath, [str(android), str(api), str(stubs)])
+            self.assertEqual(d8_classpaths, [api, stubs])
+
+            commands.clear()
+            config["host_stubs"] = False
+
+            with patch("fluxgram_devkit.cli.find_java", return_value=javac), \
+                    patch("fluxgram_devkit.cli.find_android",
+                          return_value=(tools, android, tools, d8)), \
+                    patch("fluxgram_devkit.cli.run", side_effect=fake_run):
+                compile_java(project, config, None, None, None)
+
+            self.assertNotIn(str(stubs), commands[0][0][commands[0][0].index("-cp") + 1])
+            self.assertNotIn(stubs, commands[1][0])
+
+    def test_build_never_packages_compile_classpath_jars(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "plugin"
+            initialize_project(project, "java")
+            data = self.dex_fixture("Lexample/plugin/Module;")
+
+            with patch("fluxgram_devkit.cli.compile_java",
+                       return_value=(data, Path("javac"), Path("sdk"), Path("tools"))):
+                package = build_project(project)
+
+            with zipfile.ZipFile(package) as archive:
+                self.assertEqual(set(archive.namelist()), {"java/module.dex", "manifest.json"})
+                manifest = json.loads(archive.read("manifest.json"))
+
+            self.assertEqual(manifest["schema_version"], 5)
+            self.assertIn("host_fingerprint", manifest["java_module"])
 
     def test_rejects_dex_that_bundles_host_class(self):
         data = self.dex_fixture("Lorg/telegram/copied/HostClass;")

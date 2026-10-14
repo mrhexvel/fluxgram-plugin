@@ -8,4 +8,4 @@ class PluginEntry(Plugin):
     )
 
     def on_load(self):
-        self.log("Hello Plugin loaded")
+        self.log("Hello Python Plugin loaded")

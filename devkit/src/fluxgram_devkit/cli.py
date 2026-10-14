@@ -16,6 +16,7 @@ import zipfile
 import zlib
 
 from . import JAVA_API_MINOR, JAVA_API_VERSION, SDK_MINOR, SDK_VERSION
+from .device import DeviceError, install_archive, stream_logs
 
 
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024
@@ -31,6 +32,8 @@ PYTHON_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*:PluginEntry")
 JAVA_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_$]*)+")
 HASH = re.compile(r"[a-f0-9]{64}")
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
+HOST_FINGERPRINT = "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d"
+TEMPLATES = ("python", "java", "hybrid")
 
 
 class DevkitError(Exception):
@@ -105,7 +108,7 @@ def validate_manifest(manifest):
     require(set(manifest).issubset(base | optional), "Unknown manifest field")
     require(base.issubset(manifest), "Missing manifest field")
     schema = validate_integer(manifest["schema_version"], "schema_version")
-    require(schema in {2, 3, 4}, "Only manifest schema 2, 3 and 4 are supported")
+    require(schema in {2, 3, 4, 5}, "Only manifest schema 2, 3, 4 and 5 are supported")
     present_python_fields = set(manifest) & python_fields
 
     if schema in {2, 3}:
@@ -149,12 +152,15 @@ def validate_manifest(manifest):
     java = manifest.get("java_module")
     require(schema >= 3 or java is None, "java_module requires schema 3 or newer")
     require(schema != 3 or java is not None, "java_module is required for schema 3")
-    require(schema != 4 or present_python_fields or java is not None,
+    require(schema not in {4, 5} or present_python_fields or java is not None,
             "Manifest must declare a module")
+    require(schema != 5 or java is not None, "Schema 5 requires a Java module")
 
     if java is not None:
         require(isinstance(java, dict), "java_module must be an object")
         fields = {"path", "entrypoint", "sha256", "api_version", "min_api_minor"}
+        if schema == 5:
+            fields.add("host_fingerprint")
         require(set(java) == fields, "Incomplete or unknown java_module field")
         dex_path = validate_path(validate_string(java["path"], "Java module path", 240))
         require(dex_path.endswith(".dex"), "Java module must be a DEX file")
@@ -166,6 +172,11 @@ def validate_manifest(manifest):
                 f"Java API major must be {JAVA_API_VERSION}")
         require(validate_integer(java["min_api_minor"], "Java API minor") <= JAVA_API_MINOR,
                 f"Plugin requires a newer Java API than {JAVA_API_VERSION}.{JAVA_API_MINOR}")
+
+        if schema == 5:
+            fingerprint = validate_string(java["host_fingerprint"], "Host fingerprint", 64)
+            require(HASH.fullmatch(fingerprint) is not None, "Invalid host fingerprint")
+            require(fingerprint == HOST_FINGERPRINT, "Plugin requires an incompatible host")
 
     return manifest
 
@@ -427,12 +438,16 @@ def load_project(project_dir):
     require(isinstance(assets, dict) and set(assets) == {"root", "files"}, "Invalid assets section")
 
     if java is not None:
-        require(isinstance(java, dict)
-                and set(java) == {"sources", "entrypoint", "min_api_minor"},
+        require(isinstance(java, dict), "Invalid java section")
+        java_fields = {"sources", "entrypoint", "min_api_minor", "host_stubs"}
+        require(set(java).issubset(java_fields)
+                and {"sources", "entrypoint", "min_api_minor"}.issubset(java),
                 "Invalid java project fields")
+        require(type(java.get("host_stubs", False)) is bool,
+                "java.host_stubs must be a boolean")
 
     manifest = {
-        "schema_version": 4,
+        "schema_version": 5 if java is not None and java.get("host_stubs", False) else 4,
         "id": plugin["id"],
         "name": plugin["name"],
         "version": plugin["version"],
@@ -460,6 +475,9 @@ def load_project(project_dir):
             "api_version": JAVA_API_VERSION,
             "min_api_minor": java["min_api_minor"],
         }
+
+        if java.get("host_stubs", False):
+            manifest["java_module"]["host_fingerprint"] = HOST_FINGERPRINT
 
     validate_manifest(manifest)
     return project_dir, config, manifest
@@ -575,6 +593,59 @@ def api_artifact():
     return artifact, metadata
 
 
+def host_stubs_artifact():
+    root = Path(__file__).with_name("artifacts")
+    artifact = root / "fluxgram-host-stubs.jar"
+    metadata_path = root / "host-stubs.json"
+    require(artifact.is_file() and metadata_path.is_file(), "Bundled host stubs are missing")
+
+    try:
+        metadata = json.loads(metadata_path.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DevkitError("Invalid host stubs metadata") from error
+
+    fields = {
+        "host_fingerprint", "compile_sdk", "stable_api", "jar_sha256", "source_sha256",
+        "contract",
+    }
+    require(isinstance(metadata, dict) and set(metadata) == fields,
+            "Invalid host stubs metadata")
+    require(metadata["host_fingerprint"] == HOST_FINGERPRINT,
+            "Host stubs fingerprint mismatch")
+    require(metadata["compile_sdk"] == 36 and metadata["stable_api"] == "1.21",
+            "Host stubs build metadata mismatch")
+    require(HASH.fullmatch(metadata["jar_sha256"]) is not None
+            and HASH.fullmatch(metadata["source_sha256"]) is not None,
+            "Invalid host stubs metadata values")
+    require(hashlib.sha256(artifact.read_bytes()).hexdigest() == metadata["jar_sha256"],
+            "Host stubs artifact digest mismatch")
+    source = (root / "host-stubs-src/org/telegram/messenger/plugins/"
+              "ComposerInputRendererExtensions.java")
+    require(source.is_file()
+            and hashlib.sha256(source.read_bytes()).hexdigest() == metadata["source_sha256"],
+            "Host stubs source digest mismatch")
+    contract = metadata["contract"]
+    require(contract == {
+        "id": "ui.chat.composer.input.native_draw",
+        "version": 1,
+        "mode": "replacement",
+        "thread": "main",
+        "abi": [
+            "register(JavaPluginContext,Factory)->JavaPluginUiResource",
+            "Factory.create()->Renderer throws Exception",
+            "Renderer.draw(Frame)->Result throws Exception",
+            "Renderer.close()->void throws Exception",
+            "Frame.getView()->View",
+            "Frame.getCanvas()->Canvas",
+            "Frame.getWidth()->int",
+            "Frame.getHeight()->int",
+            "Frame.drawNative()->void",
+            "Result=COMMIT|FALLBACK",
+        ],
+    }, "Invalid host stubs contract")
+    return artifact, metadata
+
+
 def zip_bytes(files):
     output = io.BytesIO()
 
@@ -605,12 +676,17 @@ def compile_java(project_dir, java_config, java_home, android_sdk, build_tools):
 
     require(sources, "No Java sources were found")
     api_jar, _ = api_artifact()
+    classpath = [android_jar, api_jar]
+
+    if java_config.get("host_stubs", False):
+        stubs_jar, _ = host_stubs_artifact()
+        classpath.append(stubs_jar)
 
     with tempfile.TemporaryDirectory(prefix="fluxgram-plugin-") as temporary:
         temporary = Path(temporary)
         classes = temporary / "classes"
         classes.mkdir()
-        run([javac, "--release", "8", "-cp", os.pathsep.join([str(android_jar), str(api_jar)]),
+        run([javac, "--release", "8", "-cp", os.pathsep.join(str(item) for item in classpath),
              "-d", classes, *sources], "javac")
         class_files = [(str(path.relative_to(classes)).replace(os.sep, "/"), path.read_bytes())
                        for path in classes.rglob("*.class")]
@@ -619,8 +695,12 @@ def compile_java(project_dir, java_config, java_home, android_sdk, build_tools):
         input_jar.write_bytes(zip_bytes(class_files))
         dex_dir = temporary / "dex"
         dex_dir.mkdir()
-        run([d8, "--min-api", "24", "--lib", android_jar, "--classpath", api_jar,
-             "--output", dex_dir, input_jar], "D8")
+        d8_command = [d8, "--min-api", "24", "--lib", android_jar]
+
+        for item in classpath[1:]:
+            d8_command.extend(["--classpath", item])
+
+        run([*d8_command, "--output", dex_dir, input_jar], "D8")
         dex_files = sorted(dex_dir.glob("*.dex"))
         require([item.name for item in dex_files] == ["classes.dex"], "D8 produced unsupported multidex output")
         data = dex_files[0].read_bytes()
@@ -649,6 +729,9 @@ def build_project(project_dir, output=None, java_home=None, android_sdk=None, bu
             "api_version": JAVA_API_VERSION,
             "min_api_minor": java["min_api_minor"],
         }
+
+        if java.get("host_stubs", False):
+            manifest["java_module"]["host_fingerprint"] = HOST_FINGERPRINT
         validate_manifest(manifest)
         files.append(("java/module.dex", dex))
 
@@ -670,12 +753,13 @@ def build_project(project_dir, output=None, java_home=None, android_sdk=None, bu
     return output
 
 
-def initialize_project(destination):
+def initialize_project(destination, template="hybrid"):
     destination = Path(destination).resolve()
     require(not destination.exists(), f"Destination already exists: {destination}")
-    template = Path(__file__).with_name("templates") / "python-java"
-    require(template.is_dir(), "Bundled project template is missing")
-    shutil.copytree(template, destination)
+    require(template in TEMPLATES, f"Unknown project template: {template}")
+    source = Path(__file__).with_name("templates") / template
+    require(source.is_dir(), "Bundled project template is missing")
+    shutil.copytree(source, destination)
     return destination
 
 
@@ -683,11 +767,13 @@ def doctor(java_home=None, android_sdk=None, build_tools=None):
     javac = find_java(java_home)
     sdk, android_jar, tools, d8 = find_android(android_sdk, build_tools)
     artifact, _ = api_artifact()
+    stubs, metadata = host_stubs_artifact()
     print(f"javac: {javac}")
     print(f"android.jar: {android_jar}")
     print(f"build-tools: {tools}")
     print(f"d8: {d8}")
     print(f"java-api: {JAVA_API_VERSION}.{JAVA_API_MINOR} {artifact}")
+    print(f"host-stubs: {metadata['host_fingerprint']} {stubs}")
     print(f"android-sdk: {sdk}")
 
 
@@ -696,14 +782,33 @@ def parser():
     commands = value.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init")
     init.add_argument("destination")
+    init.add_argument("--template", choices=TEMPLATES, default="hybrid")
+    new = commands.add_parser("new")
+    new.add_argument("destination")
+    new.add_argument("--template", choices=TEMPLATES, default="hybrid")
     build = commands.add_parser("build")
     build.add_argument("project", nargs="?", default=".")
     build.add_argument("--output")
     validate = commands.add_parser("validate")
     validate.add_argument("archive")
     doctor_command = commands.add_parser("doctor")
+    install = commands.add_parser("install")
+    install.add_argument("archive")
+    install.add_argument("--enable", action="store_true")
+    reload_command = commands.add_parser("reload")
+    reload_command.add_argument("project")
+    reload_command.add_argument("--output")
+    logs = commands.add_parser("logs")
+    logs.add_argument("--plugin", required=True)
 
-    for command in (build, doctor_command):
+    device_commands = (install, reload_command, logs)
+
+    for command in device_commands:
+        command.add_argument("--device", required=True)
+        command.add_argument("--package", default="org.fluxgram.messenger.beta")
+        command.add_argument("--adb", default="adb")
+
+    for command in (build, reload_command, doctor_command):
         command.add_argument("--java-home")
         command.add_argument("--android-sdk")
         command.add_argument("--build-tools")
@@ -715,17 +820,29 @@ def main(argv=None):
     arguments = parser().parse_args(argv)
 
     try:
-        if arguments.command == "init":
-            print(initialize_project(arguments.destination))
+        if arguments.command in {"init", "new"}:
+            print(initialize_project(arguments.destination, arguments.template))
         elif arguments.command == "build":
             print(build_project(arguments.project, arguments.output, arguments.java_home,
                                 arguments.android_sdk, arguments.build_tools))
         elif arguments.command == "validate":
             result = inspect_archive(arguments.archive)
             print(f"{result['id']} {result['version']} {result['sha256']}")
-        else:
+        elif arguments.command == "doctor":
             doctor(arguments.java_home, arguments.android_sdk, arguments.build_tools)
-    except DevkitError as error:
+        elif arguments.command == "install":
+            result = install_archive(arguments.archive, arguments.device, arguments.package,
+                                     arguments.adb, "install", arguments.enable)
+            print(json.dumps(result, ensure_ascii=False))
+        elif arguments.command == "reload":
+            archive = build_project(arguments.project, arguments.output, arguments.java_home,
+                                    arguments.android_sdk, arguments.build_tools)
+            result = install_archive(archive, arguments.device, arguments.package,
+                                     arguments.adb, "reload", True)
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            stream_logs(arguments.device, arguments.package, arguments.adb, arguments.plugin)
+    except (DevkitError, DeviceError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

@@ -1,0 +1,17 @@
+[plugin]
+id = "example.composer_renderer"
+name = "Composer Renderer"
+version = "1.0.0"
+description = "Low-level FluxGram composer renderer example"
+author = "Plugin Author"
+declared_capabilities = []
+
+[java]
+sources = ["java/src"]
+entrypoint = "example.plugin.Module"
+min_api_minor = 21
+host_stubs = true
+
+[assets]
+root = "assets"
+files = []

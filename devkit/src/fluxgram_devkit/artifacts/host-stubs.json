@@ -1,0 +1,25 @@
+{
+  "host_fingerprint": "05e28c798ed5d126d3e705d5507978509869c7c2e38e9d23fdfbfee21caf8e3d",
+  "compile_sdk": 36,
+  "stable_api": "1.21",
+  "jar_sha256": "fff4e8a9be19292088dd53c7fc44bb5bad929942ddcb8d360ac73ba30884c89d",
+  "source_sha256": "bff726209fc7e1d322a7958606eb45901aa802f83b67cf43f4810f5449ac5c67",
+  "contract": {
+    "id": "ui.chat.composer.input.native_draw",
+    "version": 1,
+    "mode": "replacement",
+    "thread": "main",
+    "abi": [
+      "register(JavaPluginContext,Factory)->JavaPluginUiResource",
+      "Factory.create()->Renderer throws Exception",
+      "Renderer.draw(Frame)->Result throws Exception",
+      "Renderer.close()->void throws Exception",
+      "Frame.getView()->View",
+      "Frame.getCanvas()->Canvas",
+      "Frame.getWidth()->int",
+      "Frame.getHeight()->int",
+      "Frame.drawNative()->void",
+      "Result=COMMIT|FALLBACK"
+    ]
+  }
+}

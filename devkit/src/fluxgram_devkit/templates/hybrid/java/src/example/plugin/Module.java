@@ -9,7 +9,7 @@ public final class Module implements JavaPluginModule {
     @Override
     public void onLoad(JavaPluginContext context) {
         this.context = context;
-        context.log("Hello Plugin Java module loaded");
+        context.log("Hello Hybrid Plugin Java module loaded");
     }
 
     @Override

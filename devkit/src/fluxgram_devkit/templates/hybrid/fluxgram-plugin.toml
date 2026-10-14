@@ -1,6 +1,6 @@
 [plugin]
-id = "example.hello_plugin"
-name = "Hello Plugin"
+id = "example.hello_hybrid"
+name = "Hello Hybrid Plugin"
 version = "1.0.0"
 description = "Minimal FluxGram Python and Java plugin"
 author = "Plugin Author"
@@ -15,7 +15,8 @@ files = ["main.py"]
 [java]
 sources = ["java/src"]
 entrypoint = "example.plugin.Module"
-min_api_minor = 19
+min_api_minor = 21
+host_stubs = false
 
 [assets]
 root = "assets"
