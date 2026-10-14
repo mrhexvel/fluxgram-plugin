@@ -142,7 +142,7 @@ class DevkitTest(unittest.TestCase):
             "sha256": hashlib.sha256(data).hexdigest(),
             "api_version": 1,
             "min_api_minor": 21,
-            "host_fingerprint": "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6",
+            "host_fingerprint": "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7",
         }
 
         with tempfile.TemporaryDirectory() as directory:
@@ -269,7 +269,7 @@ min_api_minor = 21
         )
         self.assertEqual(
             metadata["host_fingerprint"],
-            "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6",
+            "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7",
         )
 
         with zipfile.ZipFile(artifact) as archive:

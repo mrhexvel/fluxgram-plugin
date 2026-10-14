@@ -32,7 +32,7 @@ PYTHON_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*:PluginEntry")
 JAVA_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_$]*)+")
 HASH = re.compile(r"[a-f0-9]{64}")
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
-HOST_FINGERPRINT = "e00a486e8d50a882bf33ad91e62b558eb47e9b0b529ae2b504843fad7f863cb6"
+HOST_FINGERPRINT = "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7"
 TEMPLATES = ("python", "java", "hybrid")
 
 
@@ -627,7 +627,7 @@ def host_stubs_artifact():
     contract = metadata["contract"]
     require(contract == {
         "id": "ui.chat.composer.input.native_draw",
-        "version": 2,
+        "version": 3,
         "mode": "replacement",
         "thread": "main",
         "abi": [
@@ -639,6 +639,7 @@ def host_stubs_artifact():
             "Surface.getGeometry()->ComposerGeometry",
             "Surface.isActive()->boolean",
             "Surface.requestFrame()->void",
+            "Surface.selectTextClusters(ComposerTextClusterSelection)->void",
             "Renderer.getCapabilities()->int",
             "Renderer.onInput(ComposerInput)->void throws Exception",
             "Renderer.onTextLayoutChanged(ComposerTextLayoutChange)->void throws Exception",
@@ -651,7 +652,10 @@ def host_stubs_artifact():
             "Frame.getGeometry()->ComposerGeometry",
             "Frame.getWidth()->int",
             "Frame.getHeight()->int",
+            "Frame.getTextClusterCapture()->ComposerTextClusterCapture",
+            "Frame.getRemovedTextClusterCapture()->ComposerTextClusterCapture",
             "Frame.drawNative()->void",
+            "Frame.drawNative(ComposerTextClusterPresentation,ComposerTextClusterPresentation)->void",
             "ExpandedFrame.getCanvas()->Canvas",
             "ExpandedFrame.getGeometry()->ComposerGeometry",
             "ExpandedFrame.getBounds()->ComposerExpandedBounds",

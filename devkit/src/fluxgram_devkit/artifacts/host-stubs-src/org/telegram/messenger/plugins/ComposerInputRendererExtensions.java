@@ -6,6 +6,9 @@ import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
 import org.telegram.messenger.plugins.api.ComposerGeometry;
 import org.telegram.messenger.plugins.api.ComposerInput;
 import org.telegram.messenger.plugins.api.ComposerSendEvent;
+import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
+import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
+import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
 import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
 import org.telegram.messenger.plugins.api.JavaPluginContext;
 import org.telegram.messenger.plugins.api.JavaPluginUiResource;
@@ -16,6 +19,7 @@ public final class ComposerInputRendererExtensions {
     public static final int CAPABILITY_TEXT_LAYOUT = 1 << 1;
     public static final int CAPABILITY_SEND = 1 << 2;
     public static final int CAPABILITY_EXPANDED_DRAW = 1 << 3;
+    public static final int CAPABILITY_TEXT_CAPTURE = 1 << 4;
 
     private ComposerInputRendererExtensions() {
     }
@@ -45,6 +49,8 @@ public final class ComposerInputRendererExtensions {
         boolean isActive();
 
         void requestFrame();
+
+        void selectTextClusters(ComposerTextClusterSelection selection);
     }
 
     public interface Renderer extends AutoCloseable {
@@ -84,7 +90,14 @@ public final class ComposerInputRendererExtensions {
 
         int getHeight();
 
+        ComposerTextClusterCapture getTextClusterCapture();
+
+        ComposerTextClusterCapture getRemovedTextClusterCapture();
+
         void drawNative();
+
+        void drawNative(ComposerTextClusterPresentation current,
+                ComposerTextClusterPresentation removed);
     }
 
     public interface ExpandedFrame {
