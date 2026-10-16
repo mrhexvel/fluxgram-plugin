@@ -4,7 +4,7 @@ name = "Hello Python Plugin"
 version = "1.0.0"
 description = "Minimal FluxGram Python plugin"
 author = "Plugin Author"
-min_sdk_minor = 10
+min_sdk_minor = 11
 declared_capabilities = []
 
 [python]

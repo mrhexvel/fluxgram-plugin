@@ -14,6 +14,7 @@ from ..models import ChatInfo, ChatNotifications, NotificationOverride
 from ..plugin import Plugin
 from ..settings import Select, Slider, Switch, Text
 from ..storage import Storage, StorageMigrationError, _migrate_plugin_storage
+from ..transforms import OutgoingTextTransformRequest
 from .storage import HarnessStorageBackend
 from .scheduler import HarnessTaskScheduler
 
@@ -672,6 +673,34 @@ class PluginHarness(Generic[PluginType]):
 
         return self.run_worker(lambda: self.plugin.before_send(event))
 
+    def transform_outgoing_text(
+            self,
+            request: OutgoingTextTransformRequest,
+    ) -> str:
+        if not isinstance(request, OutgoingTextTransformRequest):
+            raise TypeError("request must be an OutgoingTextTransformRequest")
+
+        if not self.active:
+            return request.text
+
+        if self.owner_for(request.account) != request.owner_id:
+            return request.text
+
+        if request.context.generation != self.generation:
+            return request.text
+
+        result = self.run_worker(
+            lambda: self.plugin.transform_outgoing_text(request)
+        )
+
+        if result is None:
+            return request.text
+
+        if not isinstance(result, str):
+            raise TypeError("transform_outgoing_text must return str or None")
+
+        return result
+
     def run_ui(self, callback: Callable[[], Any]) -> Any:
         return self._ui_thread.call(callback)
 
@@ -743,6 +772,9 @@ class PluginHarness(Generic[PluginType]):
 
         if self.tasks.active_count:
             failures.append("managed tasks remain active")
+
+        if self.plugin.commands.active_count:
+            failures.append("commands remain active")
 
         if failures:
             raise AssertionError("Plugin runtime is not clean: " + ", ".join(failures))

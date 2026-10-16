@@ -12,6 +12,7 @@ from .builders import (
     message_edited,
     message_received,
     notification_override,
+    outgoing_text_transform,
     plugin_setting_changed,
 )
 from .harness import (
@@ -58,5 +59,6 @@ __all__ = [
     "message_edited",
     "message_received",
     "notification_override",
+    "outgoing_text_transform",
     "plugin_setting_changed",
 ]

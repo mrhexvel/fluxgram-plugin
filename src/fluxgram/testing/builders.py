@@ -16,6 +16,7 @@ from ..models import (
     MessageInfo,
     NotificationOverride,
 )
+from ..transforms import OutgoingTextTransformRequest
 
 
 def notification_override(
@@ -245,6 +246,36 @@ def before_send(
         account=account,
         text_length=text_length,
         schedule_date=schedule_date,
+    )
+
+
+def outgoing_text_transform(
+        text: str,
+        *,
+        dialog_id: int = 1,
+        topic_id: int = 0,
+        notify: bool = True,
+        schedule_date: int = 0,
+        schedule_repeat_period: int = 0,
+        pay_stars: int = 0,
+        account: int = 0,
+        owner_id: int = 1,
+        generation: int = 1,
+        context: EventContext | None = None,
+) -> OutgoingTextTransformRequest:
+    return OutgoingTextTransformRequest(
+        context=context or event_context(
+            account=account,
+            owner_id=owner_id,
+            generation=generation,
+        ),
+        dialog_id=dialog_id,
+        topic_id=topic_id,
+        text=text,
+        notify=notify,
+        schedule_date=schedule_date,
+        schedule_repeat_period=schedule_repeat_period,
+        pay_stars=pay_stars,
     )
 
 

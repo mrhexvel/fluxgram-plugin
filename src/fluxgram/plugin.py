@@ -1,10 +1,12 @@
 from enum import Enum, auto
 
+from .commands import Commands
 from .events import BeforeSendEvent, Events
 from ._runtime import create_runtime
 from .settings import Settings
 from .storage import Storage, StorageMigration
 from .tasks import Tasks
+from .transforms import OutgoingTextTransformRequest
 from .ui import UI
 
 
@@ -26,6 +28,7 @@ class Plugin:
         self._call_ui = runtime.call_ui
         self._log = runtime.log
         self.settings = Settings(self.settings_schema)
+        self.commands = Commands()
         self.events = Events(runtime.events)
         self.events._set_error_handler(
             lambda name, error: self.log(
@@ -62,6 +65,7 @@ class Plugin:
             ("client", self.client._close),
             ("events", lambda: self._call_ui(self.events.close)),
             ("storage", self.storage._close),
+            ("commands", self.commands._close),
             ("on_unload", self.on_unload),
         )
         errors = []
@@ -104,3 +108,9 @@ class Plugin:
 
     def before_send(self, event: BeforeSendEvent) -> None:
         pass
+
+    def transform_outgoing_text(
+            self,
+            request: OutgoingTextTransformRequest,
+    ) -> str | None:
+        return self.commands._dispatch(request)

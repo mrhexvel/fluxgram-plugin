@@ -22,6 +22,7 @@ from fluxgram.testing import (
     message_edited,
     message_received,
     notification_override,
+    outgoing_text_transform,
 )
 from fluxgram.ui import Bulletins, Navigation, Notifications
 
@@ -82,6 +83,12 @@ class ExamplePlugin(Plugin):
 
         return event.text_length
 
+    def transform_outgoing_text(self, request):
+        if request.text.startswith(".hello "):
+            return f"Hello, {request.text[7:]}!"
+
+        return None
+
     def on_unload(self):
         self.unload_count += 1
 
@@ -115,6 +122,11 @@ class RetryUnloadPlugin(Plugin):
 
         if self.unload_count == 1:
             raise RuntimeError("retry unload")
+
+
+class InvalidTransformPlugin(Plugin):
+    def transform_outgoing_text(self, request):
+        return 7
 
 
 class TestingTest(unittest.TestCase):
@@ -158,6 +170,15 @@ class TestingTest(unittest.TestCase):
         self.assertEqual(application_foregrounded().account, 0)
         self.assertEqual(application_backgrounded().owner_id, 1)
         self.assertTrue(before_send(schedule_date=5).scheduled)
+        transform = outgoing_text_transform(
+            ".hello Alice",
+            dialog_id=-10,
+            topic_id=3,
+            schedule_date=5,
+        )
+        self.assertEqual(transform.dialog_id, -10)
+        self.assertEqual(transform.topic_id, 3)
+        self.assertTrue(transform.scheduled)
 
         with self.assertRaisesRegex(ValueError, "dialog IDs"):
             message_received(
@@ -200,6 +221,18 @@ class TestingTest(unittest.TestCase):
         send_event = before_send(account=0, text_length=12)
         self.assertEqual(harness.dispatch_before_send(send_event), 12)
         self.assertEqual(harness.plugin.before_send_events, [send_event])
+        self.assertEqual(
+            harness.transform_outgoing_text(
+                outgoing_text_transform(".hello Alice", dialog_id=42)
+            ),
+            "Hello, Alice!",
+        )
+        self.assertEqual(
+            harness.transform_outgoing_text(
+                outgoing_text_transform("Unchanged", dialog_id=42)
+            ),
+            "Unchanged",
+        )
 
         harness.disable()
         harness.disable()
@@ -228,6 +261,10 @@ class TestingTest(unittest.TestCase):
 
         self.assertEqual(harness.emit("message.received", event), ())
         self.assertIsNone(harness.dispatch_before_send(before_send(text_length=1)))
+        self.assertEqual(
+            harness.transform_outgoing_text(outgoing_text_transform("Original")),
+            "Original",
+        )
         harness.settings.flush()
         self.assertEqual(harness.plugin.setting_changes, [])
 
@@ -253,6 +290,17 @@ class TestingTest(unittest.TestCase):
             lambda: harness.plugin.navigation.open_chat(account=0, dialog_id=1)
         )
         self.assertEqual(len(harness.ui.navigation), 1)
+        harness.disable()
+
+    def test_transform_validates_result_and_owner_identity(self):
+        harness = PluginHarness(InvalidTransformPlugin)
+        request = outgoing_text_transform("Original")
+
+        with self.assertRaisesRegex(TypeError, "str or None"):
+            harness.transform_outgoing_text(request)
+
+        harness.replace_owner(0, 2)
+        self.assertEqual(harness.transform_outgoing_text(request), "Original")
         harness.disable()
 
     def test_setting_validation_and_raw_fallback(self):

@@ -1,4 +1,10 @@
 from .plugin import Plugin
+from .commands import (
+    CommandHandler,
+    CommandInvocation,
+    CommandRegistration,
+    Commands,
+)
 from .settings import (
     Select,
     SelectSetting,
@@ -64,12 +70,17 @@ from .models import (
     MessageInfo,
     NotificationOverride,
 )
+from .transforms import OutgoingTextTransformRequest
 
 API_VERSION = 2
-API_MINOR_VERSION = 10
+API_MINOR_VERSION = 11
 
 __all__ = [
     "Plugin",
+    "CommandHandler",
+    "CommandInvocation",
+    "CommandRegistration",
+    "Commands",
     "Switch",
     "Select",
     "Slider",
@@ -127,4 +138,5 @@ __all__ = [
     "ChatNotifications",
     "MessageInfo",
     "NotificationOverride",
+    "OutgoingTextTransformRequest",
 ]

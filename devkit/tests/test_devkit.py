@@ -194,7 +194,7 @@ min_api_minor = 21
     def test_rejects_newer_sdk_and_bundled_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
             package = Path(directory) / "plugin.fgplugin"
-            package.write_bytes(self.package(self.manifest(min_sdk_minor=11)))
+            package.write_bytes(self.package(self.manifest(min_sdk_minor=12)))
 
             with self.assertRaises(DevkitError):
                 inspect_archive(package)

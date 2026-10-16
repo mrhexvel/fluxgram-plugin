@@ -8,6 +8,11 @@ import fluxgram.models
 import fluxgram.testing
 import fluxgram.ui
 from fluxgram import (
+    CommandHandler,
+    CommandInvocation,
+    CommandRegistration,
+    Commands,
+    OutgoingTextTransformRequest,
     Plugin,
     Select,
     SelectSetting,
@@ -29,13 +34,21 @@ class ImportsTest(unittest.TestCase):
     def test_distribution_metadata(self):
         metadata = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
-        self.assertEqual(metadata["project"]["version"], "2.11.0")
+        self.assertEqual(metadata["project"]["version"], "2.12.0")
         self.assertEqual(metadata["project"]["urls"]["Repository"],
                          "https://github.com/mrhexvel/fluxgram-plugin")
 
     def test_public_api_imports_without_client_runtime(self):
         self.assertEqual(fluxgram.API_VERSION, 2)
-        self.assertEqual(fluxgram.API_MINOR_VERSION, 10)
+        self.assertEqual(fluxgram.API_MINOR_VERSION, 11)
+        self.assertIs(
+            fluxgram.OutgoingTextTransformRequest,
+            OutgoingTextTransformRequest,
+        )
+        self.assertIs(fluxgram.CommandInvocation, CommandInvocation)
+        self.assertIs(fluxgram.CommandRegistration, CommandRegistration)
+        self.assertIs(fluxgram.Commands, Commands)
+        self.assertIs(fluxgram.CommandHandler, CommandHandler)
         self.assertIs(
             fluxgram.ApplicationBackgroundedEvent,
             fluxgram.events.ApplicationBackgroundedEvent,

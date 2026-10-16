@@ -74,6 +74,85 @@ Settings support the optional semantic icons `adjustments`, `auto_delete`, `blur
 and `zoom_in`. The legacy `SwitchSetting`, `SelectSetting`, `SliderSetting`, and
 `TextSetting` names remain aliases for existing plugins.
 
+## Outgoing text transforms
+
+Host SDK 2.11 lets one hook per Python plugin transform ordinary text submitted
+from the chat composer. The hook runs on the plugin executor before Telegram
+builds entities, splits the text, or creates local outgoing messages:
+
+```python
+from fluxgram import OutgoingTextTransformRequest, Plugin
+
+
+class PluginEntry(Plugin):
+    def transform_outgoing_text(
+            self,
+            request: OutgoingTextTransformRequest,
+    ) -> str | None:
+        if request.text.startswith(".hello "):
+            return f"Hello, {request.text[7:]}!"
+
+        return None
+```
+
+`None` preserves the current text. Returning a string passes that string to the
+next transformer. Enabled transformers run sequentially in lexical plugin-ID
+order. Their immutable request includes account-owner context, dialog and topic
+identity, notification mode, scheduling values, and paid-message stars.
+
+The host accepts at most 32768 UTF-16 code units, allows 400 milliseconds per
+plugin and one second for the whole pipeline, and uses the last successful text
+after queue saturation, timeout, invalid output, or a plugin exception. A late
+result cannot affect the send. If the draft, dialog, account owner, runtime
+generation, or composer lifecycle changes while work is pending, the stale send
+is cancelled. A replacement is plain text; returning `None` or the original
+string preserves the composer's current formatting spans.
+
+The hook applies to plain-text submissions through `ChatActivityEnterView`,
+including scheduled, silent, paid, and forwarding-comment variants. Rich
+drafts, message editing, forwarded or retried message bodies, media captions,
+and programmatic `SendMessagesHelper` calls are outside this contract. Python
+code which is already running cannot be forcibly interrupted after host
+timeout.
+
+Standalone tests can use `outgoing_text_transform` and
+`PluginHarness.transform_outgoing_text`.
+
+## Text commands
+
+`Commands` is the typed high-level router over the outgoing text hook. A plugin
+registers commands during `on_load` and does not need to parse prefixes or
+override `transform_outgoing_text`:
+
+```python
+from fluxgram import CommandInvocation, Plugin
+
+
+class PluginEntry(Plugin):
+    def on_load(self) -> None:
+        self.commands.register(
+            ".hello",
+            self.hello,
+            aliases=(".hi",),
+        )
+
+    def hello(self, command: CommandInvocation) -> str:
+        return f"Hello, {command.arguments}!"
+```
+
+Triggers start with a dot, contain 1-31 ASCII letters, digits, underscores, or
+hyphens, and match the complete first token without case sensitivity. The
+immutable `CommandInvocation` exposes the primary name, the token actually
+entered, trimmed arguments, the original transform request, and account,
+dialog, and topic shortcuts. Duplicate names and aliases are rejected when the
+plugin loads.
+
+`register` returns a `CommandRegistration` with idempotent `unregister` and
+`close` methods. Registrations are removed automatically during plugin unload.
+For local handlers, `self.commands.command(...)` can also be used as a typed
+decorator. Returning `None` preserves the original composer text; exceptions
+use the outgoing pipeline's normal fallback.
+
 ## Development
 
 Run the standalone checks from the repository root:
