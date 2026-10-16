@@ -612,7 +612,7 @@ def host_stubs_artifact():
             "Invalid host stubs metadata")
     require(metadata["host_fingerprint"] == HOST_FINGERPRINT,
             "Host stubs fingerprint mismatch")
-    require(metadata["compile_sdk"] == 36 and metadata["stable_api"] == "1.21",
+    require(metadata["compile_sdk"] == 36 and metadata["stable_api"] == "1.22",
             "Host stubs build metadata mismatch")
     require(HASH.fullmatch(metadata["jar_sha256"]) is not None
             and HASH.fullmatch(metadata["source_sha256"]) is not None,

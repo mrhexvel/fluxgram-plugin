@@ -257,7 +257,7 @@ min_api_minor = 21
     def test_bundled_java_api_artifact_is_valid(self):
         artifact, metadata = api_artifact()
         self.assertTrue(artifact.is_file())
-        self.assertEqual(metadata["api_minor"], 21)
+        self.assertEqual(metadata["api_minor"], 22)
 
     def test_bundled_host_stubs_are_minimal_and_reproducible(self):
         artifact, metadata = host_stubs_artifact()

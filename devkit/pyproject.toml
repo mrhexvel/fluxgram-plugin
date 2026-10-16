@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fluxgram-plugin-devkit"
-version = "1.4.0"
+version = "1.5.0"
 description = "Build and validate FluxGram plugin packages"
 readme = "README.md"
 requires-python = ">=3.11"
