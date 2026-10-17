@@ -24,6 +24,8 @@ PluginType = TypeVar("PluginType", bound=Plugin)
 
 @dataclass(frozen=True)
 class BulletinCall:
+    """Immutable record of a bulletin requested through the test harness."""
+
     title: str
     text: str
     on_click: Callable[[], Any] | None
@@ -33,6 +35,8 @@ class BulletinCall:
 
 @dataclass(frozen=True)
 class NotificationCall:
+    """Immutable record of an in-app notification request."""
+
     event: MessageReceivedEvent
     respect_mute: bool
     show_in_current_chat: bool
@@ -41,6 +45,8 @@ class NotificationCall:
 
 @dataclass(frozen=True)
 class NavigationCall:
+    """Immutable record of a chat navigation request."""
+
     account: int
     dialog_id: int
     topic_id: int
@@ -49,6 +55,8 @@ class NavigationCall:
 
 @dataclass(frozen=True)
 class ChatLookup:
+    """Immutable record of a chat snapshot lookup."""
+
     account: int
     dialog_id: int
     topic_id: int
@@ -205,6 +213,12 @@ class _Subscription:
 
 
 class HarnessEvents:
+    """Deterministic legacy event port used by ``PluginHarness``.
+
+    Legacy callbacks execute in the harness's simulated UI-thread context.
+    Typed event channels are exposed by the real ``Events`` facade.
+    """
+
     SUPPORTED = ("message.received", "notification.received")
 
     def __init__(self, ui_thread: _UIThread):
@@ -214,6 +228,8 @@ class HarnessEvents:
         self.subscriptions = []
 
     def bind_runtime(self, host: _Host, generation: int) -> None:
+        """Bind event delivery to a simulated runtime generation."""
+
         self._is_active = lambda: host.isGenerationActive(generation)
 
     def subscribe(
@@ -223,6 +239,8 @@ class HarnessEvents:
             *,
             thread: str = "ui",
     ) -> _Subscription:
+        """Subscribe to a supported legacy UI-thread event."""
+
         if self._closed:
             raise RuntimeError("Plugin event bus is closed")
 
@@ -241,6 +259,8 @@ class HarnessEvents:
         return subscription
 
     def emit(self, name: str, event: MessageReceivedEvent) -> tuple[Any, ...]:
+        """Synchronously emit a legacy event and return callback results."""
+
         if name not in self.SUPPORTED:
             raise ValueError(f"Unsupported event: {name}")
 
@@ -261,6 +281,8 @@ class HarnessEvents:
         return tuple(results)
 
     def close(self) -> None:
+        """Close all legacy subscriptions idempotently."""
+
         if self._closed:
             return
 
@@ -272,10 +294,14 @@ class HarnessEvents:
 
     @property
     def active_count(self) -> int:
+        """Return the number of active legacy subscriptions."""
+
         return sum(not subscription.closed for subscription in self.subscriptions)
 
 
 class HarnessChats:
+    """Deterministic UI-thread chat lookup service for plugin tests."""
+
     def __init__(self, require_active: Callable[[], None], ui_thread: _UIThread):
         self._require_active = require_active
         self._ui_thread = ui_thread
@@ -283,12 +309,19 @@ class HarnessChats:
         self.calls = []
 
     def add(self, value: ChatInfo, *, account: int = 0, topic_id: int = 0) -> None:
+        """Register a chat snapshot for an account, dialog, and topic key."""
+
         if not isinstance(value, ChatInfo):
             raise TypeError("value must be a ChatInfo")
 
         self._items[(account, value.id, topic_id)] = value
 
     def get(self, *, account: int, dialog_id: int, topic_id: int = 0) -> ChatInfo:
+        """Return a registered snapshot or an immutable unknown fallback.
+
+        Calls must run through ``PluginHarness.run_ui``.
+        """
+
         self._require_active()
 
         if not self._ui_thread.is_ui_thread():
@@ -319,6 +352,8 @@ class HarnessChats:
 
 
 class HarnessClient:
+    """Minimal lifecycle-aware client facade exposed by ``PluginHarness``."""
+
     def __init__(self, ui_thread: _UIThread):
         self._closed = False
         self._is_active = lambda: False
@@ -398,6 +433,8 @@ class _NotificationsService:
 
 
 class HarnessUI:
+    """Mutable collection of UI call records captured by the harness."""
+
     def __init__(self):
         self.bulletins = []
         self.notifications = []
@@ -440,6 +477,8 @@ class _UIServices:
 
 
 class HarnessSettings:
+    """Validated settings controller for a harnessed plugin instance."""
+
     def __init__(self, harness, values: dict[str, Any]):
         self._harness = harness
         self._values = values
@@ -447,12 +486,18 @@ class HarnessSettings:
 
     @property
     def values(self) -> dict[str, Any]:
+        """Return a detached copy of persisted test setting values."""
+
         return dict(self._values)
 
     def get(self, key: str) -> Any:
+        """Read a setting through the plugin's production settings facade."""
+
         return self._harness.plugin.settings.get(key)
 
     def set(self, key: str, value: Any, *, dispatch: bool = True) -> None:
+        """Validate and persist a value, optionally dispatching its event now."""
+
         item = self._harness.plugin.settings._schema.get(key)
 
         if item is None:
@@ -473,12 +518,16 @@ class HarnessSettings:
             self.flush()
 
     def set_raw(self, key: str, value: Any) -> None:
+        """Persist an unvalidated value to test production fallback behavior."""
+
         if key not in self._harness.plugin.settings._schema:
             raise KeyError(key)
 
         self._values[key] = value
 
     def flush(self) -> None:
+        """Dispatch queued setting changes in insertion order."""
+
         while self._pending:
             key, pending = self._pending.popitem(last=False)
             value, context = pending
@@ -507,6 +556,8 @@ class HarnessSettings:
         )
 
     def clear_pending(self) -> None:
+        """Discard all queued setting changes without dispatching them."""
+
         self._pending.clear()
 
     @staticmethod
@@ -536,6 +587,13 @@ class HarnessSettings:
 
 
 class PluginHarness(Generic[PluginType]):
+    """Run one plugin generation deterministically on ordinary CPython.
+
+    Construction performs storage migration, binds runtime services, and calls
+    ``on_load``. The harness models lifecycle, ownership, UI affinity, bounded
+    storage, events, and managed tasks without emulating Telegram views.
+    """
+
     def __init__(
             self,
             plugin_class: type[PluginType],
@@ -618,16 +676,27 @@ class PluginHarness(Generic[PluginType]):
 
     @property
     def active(self) -> bool:
+        """Return whether the simulated runtime generation is active."""
+
         return not self._closed and self._host.isGenerationActive(self.generation)
 
     @property
     def events(self) -> HarnessEvents:
+        """Return the legacy event test port."""
+
         return self._events
 
     def emit(self, name: str, event: MessageReceivedEvent) -> tuple[Any, ...]:
+        """Emit a supported legacy event in simulated UI-thread context."""
+
         return self._events.emit(name, event)
 
     def emit_event(self, event) -> None:
+        """Deliver a typed event on the simulated plugin worker.
+
+        Events captured for a different current account owner are dropped.
+        """
+
         context = getattr(event, "context", None)
 
         if (
@@ -639,9 +708,13 @@ class PluginHarness(Generic[PluginType]):
         self.run_worker(lambda: self.plugin.events._dispatch(event))
 
     def owner_for(self, account: int) -> int | None:
+        """Return the simulated owner ID for an account slot, if available."""
+
         return self._owners.get(account)
 
     def set_active_account(self, account: int, owner_id: int) -> None:
+        """Select an account and register its simulated owner."""
+
         if type(account) is not int or account < 0:
             raise ValueError("account must be a non-negative integer")
 
@@ -653,6 +726,8 @@ class PluginHarness(Generic[PluginType]):
         self._owners[account] = owner_id
 
     def replace_owner(self, account: int, owner_id: int) -> None:
+        """Reuse an account slot with another owner for stale-state tests."""
+
         if account not in self._owners:
             raise ValueError("account is not registered")
 
@@ -665,6 +740,8 @@ class PluginHarness(Generic[PluginType]):
             self.owner_id = owner_id
 
     def dispatch_before_send(self, event: BeforeSendEvent) -> Any:
+        """Invoke the legacy before-send hook on the simulated worker."""
+
         if not isinstance(event, BeforeSendEvent):
             raise TypeError("event must be a BeforeSendEvent")
 
@@ -677,6 +754,13 @@ class PluginHarness(Generic[PluginType]):
             self,
             request: OutgoingTextTransformRequest,
     ) -> str:
+        """Run the outgoing text hook with lifecycle fallback checks.
+
+        Inactive, stale-owner, stale-generation, and ``None`` results preserve
+        the request text. Unlike production timeout/error fallback, handler
+        exceptions and invalid return types are raised to make tests fail.
+        """
+
         if not isinstance(request, OutgoingTextTransformRequest):
             raise TypeError("request must be an OutgoingTextTransformRequest")
 
@@ -702,24 +786,36 @@ class PluginHarness(Generic[PluginType]):
         return result
 
     def run_ui(self, callback: Callable[[], Any]) -> Any:
+        """Run a callback synchronously in simulated UI-thread context."""
+
         return self._ui_thread.call(callback)
 
     def run_worker(self, callback: Callable[[], Any]) -> Any:
+        """Run a callback synchronously outside simulated UI-thread context."""
+
         return self._ui_thread.call_worker(callback)
 
     def drain_ui(self) -> None:
+        """Run queued UI callbacks until the queue is empty."""
+
         self._ui_thread.drain()
 
     def drain_storage(self) -> None:
+        """Run queued asynchronous storage operations on the worker."""
+
         self.run_worker(self._storage_session.drain)
 
     def invalidate_generation(self) -> None:
+        """Invalidate the runtime and cancel pending generation-owned work."""
+
         self._host.invalidate()
         self.tasks.invalidate()
         self.generation += 1
         self.settings.clear_pending()
 
     def disable(self) -> None:
+        """Invalidate, unload, drain UI cleanup, and close the harness runtime."""
+
         if self._closed:
             return
 
@@ -738,6 +834,8 @@ class PluginHarness(Generic[PluginType]):
             *,
             title: str | None = None,
     ) -> BulletinCall:
+        """Return the newest matching bulletin record or raise ``AssertionError``."""
+
         for call in reversed(self.ui.bulletins):
             if text is not None and call.text != text:
                 continue
@@ -750,6 +848,8 @@ class PluginHarness(Generic[PluginType]):
         raise AssertionError("Matching bulletin was not shown")
 
     def assert_clean(self) -> None:
+        """Assert that unload released every resource tracked by the harness."""
+
         failures = []
 
         if not self._closed:

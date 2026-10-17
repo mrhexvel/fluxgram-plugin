@@ -51,7 +51,7 @@ Files under `.fluxgram/ide` are generated and ignored. Restore them after clonin
 fluxgram-plugin prepare-ide
 ```
 
-The Gradle project exists only to provide the editor classpath and quick Java compilation. `fluxgram-plugin build` remains the authoritative package builder and does not include IDE files or SDK artifacts in `.fgplugin`.
+The Gradle project exists only to provide the editor classpath and quick Java compilation. The stable Java API is resolved from a generated local Maven repository so IntelliJ-based editors attach its matching sources and Javadocs without network access. `fluxgram-plugin build` remains the authoritative package builder and does not include IDE files or SDK artifacts in `.fgplugin`.
 
 The `python` and `hybrid` templates are stable lifecycle examples. The `java` template is a low-level E5 example using `ui.chat.composer.input.native_draw`; its transform policy remains in the external plugin. Do not add `fluxgram`, `fluxgram.py`, the installed `fluxgram-plugin` SDK, either bundled JAR, `.venv`, build output, or local credentials to the package.
 

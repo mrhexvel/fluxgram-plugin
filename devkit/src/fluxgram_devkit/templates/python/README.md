@@ -8,7 +8,7 @@ python3.11 -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-With Pyright or Pylance enabled, `pyrightconfig.json` and the installed `fluxgram-plugin` package provide completion and type information. Restore the generated TOML schema after cloning or updating the devkit:
+With Pyright or Pylance enabled, `pyrightconfig.json` and the installed `fluxgram-plugin` package provide completion, type information, and behavioral hover documentation. Restore the generated TOML schema after cloning or updating the devkit:
 
 ```sh
 fluxgram-plugin prepare-ide

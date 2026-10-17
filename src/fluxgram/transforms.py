@@ -5,6 +5,12 @@ from .events import EventContext
 
 @dataclass(frozen=True)
 class OutgoingTextTransformRequest:
+    """Immutable snapshot of an outgoing plain-text send.
+
+    The request is captured before entity extraction and message splitting. It
+    is valid only for its account owner and runtime generation.
+    """
+
     context: EventContext
     dialog_id: int
     topic_id: int
@@ -46,12 +52,18 @@ class OutgoingTextTransformRequest:
 
     @property
     def account(self) -> int:
+        """Return the captured Telegram account index."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured Telegram account owner ID."""
+
         return self.context.owner_id
 
     @property
     def scheduled(self) -> bool:
+        """Return whether the send has a nonzero schedule date."""
+
         return self.schedule_date != 0

@@ -7,51 +7,75 @@ from typing import Any, Generic, Protocol, TypeVar
 
 
 class StorageError(RuntimeError):
+    """Base error for host-managed plugin storage operations."""
+
     pass
 
 
 class StorageUnavailableError(StorageError):
+    """Raised when the current runtime does not provide storage."""
+
     pass
 
 
 class StorageInactiveError(StorageError):
+    """Raised when storage is used outside its active plugin generation."""
+
     pass
 
 
 class StorageAccountUnavailableError(StorageError):
+    """Raised when an account-scoped operation has no active account owner."""
+
     pass
 
 
 class StorageOwnerChangedError(StorageError):
+    """Raised when an account scope no longer belongs to its captured owner."""
+
     pass
 
 
 class StorageThreadError(StorageError):
+    """Raised when direct storage I/O is attempted on the UI thread."""
+
     pass
 
 
 class StorageTypeError(StorageError):
+    """Raised when a stored value is read with a different typed accessor."""
+
     pass
 
 
 class StorageQuotaExceededError(StorageError):
+    """Raised when an operation would exceed a host-managed storage quota."""
+
     pass
 
 
 class StorageTransactionError(StorageError):
+    """Raised for invalid transaction lifecycle or nesting."""
+
     pass
 
 
 class StorageQueueFullError(StorageError):
+    """Raised when the bounded asynchronous storage queue is full."""
+
     pass
 
 
 class StorageMigrationError(StorageError):
+    """Raised when schema migration validation or commit fails."""
+
     pass
 
 
 @dataclass(frozen=True)
 class StorageLimits:
+    """Immutable snapshot of per-plugin value and private-file quotas."""
+
     max_entries: int = 4096
     max_value_bytes: int = 256 * 1024
     max_total_value_bytes: int = 4 * 1024 * 1024
@@ -62,6 +86,8 @@ class StorageLimits:
 
 @dataclass(frozen=True)
 class StorageStatistics:
+    """Immutable snapshot of current plugin storage usage and schema version."""
+
     value_count: int
     value_bytes: int
     schema_version: int
@@ -75,10 +101,14 @@ ResultType = TypeVar("ResultType")
 
 @dataclass(frozen=True)
 class StorageResult(Generic[ResultType]):
+    """Immutable value-or-error result delivered by an asynchronous operation."""
+
     value: ResultType | None = None
     error: BaseException | None = None
 
     def unwrap(self) -> ResultType:
+        """Return the value, or re-raise the captured operation error."""
+
         if self.error is not None:
             raise self.error
 
@@ -86,6 +116,8 @@ class StorageResult(Generic[ResultType]):
 
 
 class StorageTask(Generic[ResultType]):
+    """Cancelable handle for one asynchronous storage operation."""
+
     def __init__(self):
         self._lock = Lock()
         self._started = False
@@ -95,16 +127,22 @@ class StorageTask(Generic[ResultType]):
 
     @property
     def done(self) -> bool:
+        """Return whether the task completed, failed, or was cancelled."""
+
         with self._lock:
             return self._done
 
     @property
     def cancelled(self) -> bool:
+        """Return whether cancellation won before result delivery."""
+
         with self._lock:
             return self._cancelled
 
     @property
     def result(self) -> StorageResult[ResultType]:
+        """Return the completed result or raise if pending or cancelled."""
+
         with self._lock:
             if self._cancelled:
                 raise RuntimeError("Storage task was cancelled")
@@ -115,6 +153,8 @@ class StorageTask(Generic[ResultType]):
             return self._result
 
     def cancel(self) -> bool:
+        """Cancel pending delivery, returning ``False`` after completion."""
+
         with self._lock:
             if self._done:
                 return False
@@ -338,15 +378,25 @@ def _decode(value: _StoredValue, expected: str) -> Any:
 
 
 class StorageScope:
+    """Typed key-value access to one global or captured account scope.
+
+    Missing keys raise ``KeyError`` unless a default is supplied. Values are
+    copied through validated host storage and remain subject to plugin quotas.
+    """
+
     def __init__(self, storage, scope: Any, transaction=None):
         self._storage = storage
         self._scope = scope
         self._transaction = transaction
 
     def contains(self, key: str) -> bool:
+        """Return whether the scope contains ``key``."""
+
         return self._read(_validate_key(key)) is not None
 
     def delete(self, key: str) -> bool:
+        """Delete ``key`` and return whether it previously existed."""
+
         key = _validate_key(key)
         existed = self._read(key) is not None
         self._write(key, _DELETED)
@@ -354,6 +404,8 @@ class StorageScope:
         return existed
 
     def clear(self) -> None:
+        """Delete all key-value entries in this scope."""
+
         if self._transaction is not None:
             self._transaction._clear(self._scope)
             return
@@ -362,36 +414,58 @@ class StorageScope:
         self._storage._apply((_StorageOperation("clear", self._scope),))
 
     def get_bool(self, key: str, default: Any = _MISSING) -> bool:
+        """Read a boolean value, optionally returning ``default`` if absent."""
+
         return self._get(key, "bool", default)
 
     def set_bool(self, key: str, value: bool) -> None:
+        """Store a boolean value."""
+
         self._write(_validate_key(key), _stored("bool", value))
 
     def get_int(self, key: str, default: Any = _MISSING) -> int:
+        """Read a signed 64-bit integer, or the optional default."""
+
         return self._get(key, "int", default)
 
     def set_int(self, key: str, value: int) -> None:
+        """Store a signed 64-bit integer."""
+
         self._write(_validate_key(key), _stored("int", value))
 
     def get_float(self, key: str, default: Any = _MISSING) -> float:
+        """Read a finite float, or the optional default."""
+
         return self._get(key, "float", default)
 
     def set_float(self, key: str, value: float) -> None:
+        """Store a finite float."""
+
         self._write(_validate_key(key), _stored("float", value))
 
     def get_string(self, key: str, default: Any = _MISSING) -> str:
+        """Read a string, or the optional default."""
+
         return self._get(key, "string", default)
 
     def set_string(self, key: str, value: str) -> None:
+        """Store a UTF-8 string subject to the per-value byte limit."""
+
         self._write(_validate_key(key), _stored("string", value))
 
     def get_bytes(self, key: str, default: Any = _MISSING) -> bytes:
+        """Read an immutable bytes copy, or the optional default."""
+
         return self._get(key, "bytes", default)
 
     def set_bytes(self, key: str, value: bytes) -> None:
+        """Store bytes subject to the per-value byte limit."""
+
         self._write(_validate_key(key), _stored("bytes", value))
 
     def get_json(self, key: str, default: Any = _MISSING) -> Any:
+        """Read a detached JSON-compatible value, or the optional default."""
+
         value = self._read(_validate_key(key))
 
         if value is None:
@@ -406,6 +480,8 @@ class StorageScope:
         return _decode(value, "json")
 
     def set_json(self, key: str, value: Any) -> None:
+        """Store a JSON-compatible value with finite numbers and depth at most 32."""
+
         self._write(_validate_key(key), _stored("json", value))
 
     def _get(self, key: str, expected: str, default: Any) -> Any:
@@ -446,14 +522,24 @@ class StorageScope:
 
 
 class StorageFileScope:
+    """Private byte-file access to one global or captured account scope.
+
+    Logical paths never expose physical filesystem locations. File operations
+    are not part of key-value transactions or schema migration rollback.
+    """
+
     def __init__(self, storage, scope: Any):
         self._storage = storage
         self._scope = scope
 
     def contains(self, path: str) -> bool:
+        """Return whether a private file exists at the logical path."""
+
         return self._storage._file_contains(self._scope, _validate_file_path(path))
 
     def read_bytes(self, path: str) -> bytes:
+        """Return a bytes copy, raising ``KeyError`` when the file is absent."""
+
         path = _validate_file_path(path)
         value = self._storage._file_read(self._scope, path)
 
@@ -463,6 +549,8 @@ class StorageFileScope:
         return bytes(value)
 
     def write_bytes(self, path: str, data: bytes) -> None:
+        """Atomically replace a private file subject to storage quotas."""
+
         path = _validate_file_path(path)
 
         if not isinstance(data, bytes):
@@ -471,13 +559,23 @@ class StorageFileScope:
         self._storage._file_write(self._scope, path, bytes(data))
 
     def delete(self, path: str) -> bool:
+        """Delete a private file and return whether it existed."""
+
         return self._storage._file_delete(self._scope, _validate_file_path(path))
 
     def clear(self) -> None:
+        """Delete every private file in this scope."""
+
         self._storage._file_clear(self._scope)
 
 
 class StorageTransaction:
+    """Single-use atomic key-value transaction across plugin scopes.
+
+    Use as a context manager. Normal exit commits all changes atomically;
+    exceptional exit rolls them back. Nested transactions are unsupported.
+    """
+
     def __init__(self, storage):
         self._storage = storage
         self._changes = OrderedChanges()
@@ -488,10 +586,14 @@ class StorageTransaction:
 
     @property
     def global_scope(self) -> StorageScope:
+        """Return the transaction-bound global scope."""
+
         self._require_open()
         return StorageScope(self._storage, self._storage._global_scope(), self)
 
     def account(self, account: int) -> StorageScope:
+        """Return a transaction-bound scope for the account's captured owner."""
+
         self._require_open()
         return StorageScope(self._storage, self._storage._account_scope(account), self)
 
@@ -587,6 +689,12 @@ class OrderedChanges:
 
 
 class StorageMigration:
+    """Atomic storage migration from one schema version to another.
+
+    The host creates this object before plugin startup. It is single-use and
+    commits the target version only when its context exits normally.
+    """
+
     def __init__(self, storage, from_version: int, to_version: int):
         if type(from_version) is not int or type(to_version) is not int:
             raise TypeError("Storage schema versions must be integers")
@@ -600,9 +708,13 @@ class StorageMigration:
 
     @property
     def global_scope(self) -> StorageScope:
+        """Return the migration's transaction-bound global scope."""
+
         return self._transaction.global_scope
 
     def account(self, account: int) -> StorageScope:
+        """Return a migration scope for the account's captured owner."""
+
         return self._transaction.account(account)
 
     def __enter__(self):
@@ -621,6 +733,12 @@ class StorageMigration:
 
 
 class Storage:
+    """Facade for host-managed plugin key-value and private-file storage.
+
+    Direct operations must run off the UI thread. Account scopes capture the
+    current owner and fail if that account slot is later reused.
+    """
+
     def __init__(self, port: StoragePort | None):
         self._port = port
         self._closed = False
@@ -652,26 +770,40 @@ class Storage:
 
     @property
     def global_scope(self) -> StorageScope:
+        """Return the plugin-wide key-value scope."""
+
         return StorageScope(self, self._global_scope())
 
     @property
     def global_files(self) -> StorageFileScope:
+        """Return the plugin-wide private-file scope."""
+
         return StorageFileScope(self, self._global_scope())
 
     def account(self, account: int) -> StorageScope:
+        """Return key-value storage bound to the account's current owner."""
+
         return StorageScope(self, self._account_scope(account))
 
     def account_files(self, account: int) -> StorageFileScope:
+        """Return private-file storage bound to the account's current owner."""
+
         return StorageFileScope(self, self._account_scope(account))
 
     def transaction(self) -> StorageTransaction:
+        """Create a single-use atomic key-value transaction."""
+
         self._require_port()
         return StorageTransaction(self)
 
     def statistics(self) -> StorageStatistics:
+        """Return an immutable usage and limits snapshot."""
+
         return self._require_port().statistics()
 
     def clear_all(self) -> None:
+        """Delete all plugin key-value entries across every scope."""
+
         self._require_no_transaction()
         self._apply((_StorageOperation("clear_all", None),))
 
@@ -681,6 +813,13 @@ class Storage:
             *,
             on_complete=None,
     ) -> StorageTask:
+        """Queue storage work on the plugin executor.
+
+        At most two storage operations may be outstanding. ``operation`` runs
+        off the UI thread; ``on_complete`` receives a ``StorageResult`` on the
+        UI thread only while the runtime remains active.
+        """
+
         if not callable(operation):
             raise TypeError("operation must be callable")
 

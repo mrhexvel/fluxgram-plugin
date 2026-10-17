@@ -579,7 +579,7 @@ def api_artifact():
 
     fields = {
         "api_version", "api_minor", "min_sdk", "compile_sdk", "sha256",
-        "source_sha256", "host_validator_sha256", "source_commit",
+        "sources_jar_sha256", "source_sha256", "host_validator_sha256", "source_commit",
     }
     require(isinstance(metadata, dict) and set(metadata) == fields, "Invalid Java API metadata")
     require(metadata["api_version"] == JAVA_API_VERSION and metadata["api_minor"] == JAVA_API_MINOR,
@@ -594,6 +594,18 @@ def api_artifact():
     require(hashlib.sha256(artifact.read_bytes()).hexdigest() == metadata["sha256"],
             "Java API artifact digest mismatch")
     return artifact, metadata
+
+
+def api_sources_artifact():
+    root = Path(__file__).with_name("artifacts")
+    artifact = root / f"fluxgram-java-api-{JAVA_API_VERSION}.{JAVA_API_MINOR}-sources.jar"
+    _, metadata = api_artifact()
+    require(artifact.is_file(), "Bundled Java API sources artifact is missing")
+    require(HASH.fullmatch(metadata["sources_jar_sha256"]) is not None,
+            "Invalid Java API sources metadata")
+    require(hashlib.sha256(artifact.read_bytes()).hexdigest() == metadata["sources_jar_sha256"],
+            "Java API sources artifact digest mismatch")
+    return artifact
 
 
 def host_stubs_artifact():
@@ -689,17 +701,42 @@ def write_artifact(source, destination):
     temporary.replace(destination)
 
 
+def write_generated(data, destination):
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_bytes(data)
+    temporary.replace(destination)
+
+
 def prepare_ide(project_dir):
     project_dir, config, _ = load_project(project_dir)
     destination = project_dir / ".fluxgram" / "ide"
     destination.mkdir(parents=True, exist_ok=True)
     expected = {"fluxgram-plugin.schema.json"}
     write_artifact(project_schema_artifact(), destination / "fluxgram-plugin.schema.json")
+    repository = destination / "repository"
+    shutil.rmtree(repository, ignore_errors=True)
 
     if "java" in config:
         api, _ = api_artifact()
-        write_artifact(api, destination / "fluxgram-java-api.jar")
-        expected.add("fluxgram-java-api.jar")
+        sources = api_sources_artifact()
+        version = f"{JAVA_API_VERSION}.{JAVA_API_MINOR}"
+        module = repository / "org" / "fluxgram" / "fluxgram-java-api" / version
+        module.mkdir(parents=True)
+        write_artifact(api, module / f"fluxgram-java-api-{version}.jar")
+        write_artifact(sources, module / f"fluxgram-java-api-{version}-sources.jar")
+        pom = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<project xmlns="http://maven.apache.org/POM/4.0.0" '
+            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+            'xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 '
+            'https://maven.apache.org/xsd/maven-4.0.0.xsd">\n'
+            '  <modelVersion>4.0.0</modelVersion>\n'
+            '  <groupId>org.fluxgram</groupId>\n'
+            '  <artifactId>fluxgram-java-api</artifactId>\n'
+            f'  <version>{version}</version>\n'
+            '</project>\n'
+        ).encode("utf-8")
+        write_generated(pom, module / f"fluxgram-java-api-{version}.pom")
 
         if config["java"].get("host_stubs", False):
             stubs, _ = host_stubs_artifact()

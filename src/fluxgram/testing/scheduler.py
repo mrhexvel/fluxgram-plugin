@@ -5,14 +5,20 @@ from itertools import count
 
 
 class FakeClock:
+    """Monotonic manually advanced clock used by managed-task tests."""
+
     def __init__(self):
         self._milliseconds = 0
 
     @property
     def milliseconds(self) -> int:
+        """Return elapsed fake time in integer milliseconds."""
+
         return self._milliseconds
 
     def advance(self, seconds: float) -> None:
+        """Advance monotonically by a finite non-negative duration."""
+
         if type(seconds) not in (int, float) or not math.isfinite(seconds):
             raise TypeError("Clock advance must be a finite number")
 
@@ -23,6 +29,12 @@ class FakeClock:
 
 
 class HarnessTaskScheduler:
+    """Deterministic lifecycle-aware scheduler for ``PluginHarness``.
+
+    Time advances only when requested. Ready callbacks and their completion
+    phase run only through ``run_next`` or ``run_ready``.
+    """
+
     MAX_TASKS = 128
 
     def __init__(self, clock: FakeClock | None = None):
@@ -37,6 +49,8 @@ class HarnessTaskScheduler:
         self._ready = deque()
 
     def bind_runtime(self, host, generation: int) -> None:
+        """Bind scheduling to a simulated runtime generation."""
+
         if self._closed:
             raise RuntimeError("Managed task scheduler is closed")
 
@@ -44,6 +58,8 @@ class HarnessTaskScheduler:
         self._generation = generation
 
     def schedule(self, task_id, delay_ms, interval_ms, callback, completion):
+        """Schedule an internal task, returning host-port acceptance semantics."""
+
         if not self._active():
             return None
 
@@ -67,15 +83,21 @@ class HarnessTaskScheduler:
         return True
 
     def cancel(self, task_id) -> None:
+        """Cancel an internal task ID idempotently."""
+
         record = self._records.pop(task_id, None)
 
         if record is not None:
             record["revision"] += 1
 
     def active(self, task_id) -> bool:
+        """Return whether an internal task belongs to the active generation."""
+
         return task_id in self._records and self._active()
 
     def close(self) -> None:
+        """Close the scheduler and discard all pending work."""
+
         if self._closed:
             return
 
@@ -85,6 +107,8 @@ class HarnessTaskScheduler:
         self._generation = None
 
     def invalidate(self) -> None:
+        """Discard scheduled and ready work without closing the scheduler."""
+
         for record in self._records.values():
             record["revision"] += 1
 
@@ -93,14 +117,20 @@ class HarnessTaskScheduler:
         self._ready.clear()
 
     def advance(self, seconds: float) -> None:
+        """Advance fake time and collect newly due tasks."""
+
         self.clock.advance(seconds)
         self._collect_due()
 
     def run_ready(self) -> None:
+        """Run ready operations and completion phases until idle."""
+
         while self.run_next():
             pass
 
     def run_next(self) -> bool:
+        """Run one ready operation or completion phase if available."""
+
         self._collect_due()
 
         while self._ready:
@@ -151,6 +181,8 @@ class HarnessTaskScheduler:
         return False
 
     def set_foreground(self, foreground: bool) -> None:
+        """Pause or resume periodic tasks without catch-up execution."""
+
         if type(foreground) is not bool:
             raise TypeError("foreground must be a bool")
 
@@ -177,10 +209,14 @@ class HarnessTaskScheduler:
 
     @property
     def active_count(self) -> int:
+        """Return the number of tracked tasks."""
+
         return len(self._records)
 
     @property
     def foreground(self) -> bool:
+        """Return the simulated application foreground state."""
+
         return self._foreground
 
     def _enqueue(self, task_id: int, delay_ms: int, revision: int) -> None:

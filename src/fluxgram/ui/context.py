@@ -1,4 +1,11 @@
 class UI:
+    """Lifecycle and thread context shared by plugin UI services.
+
+    The host owns this context. UI services require an active generation and
+    must be called on the Android UI thread; registered resources are cleaned
+    up in reverse order during unload.
+    """
+
     def __init__(self, runtime=None, services=None):
         self._closed = False
         self._is_active = lambda: False

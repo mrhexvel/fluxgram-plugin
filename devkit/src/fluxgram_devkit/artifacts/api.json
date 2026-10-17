@@ -4,7 +4,8 @@
   "min_sdk": 24,
   "compile_sdk": 36,
   "sha256": "f5f78c6691c8fbe9d4b1814c4e4b00dbeaf2739c00f36addb50048f1664e9ed3",
-  "source_sha256": "76331ec7890336260a438ad61d2d68ad74f140c17c6e75efc113d16a1fac36ac",
+  "sources_jar_sha256": "d23ae70e2b764fce91a7d2cf3c5cd24521ced9ddefcfb3bf20ed70b00caad874",
+  "source_sha256": "e6fc20881ca854b003fff022b934d5129cca66790c14befcdb3253a53130a05f",
   "host_validator_sha256": "d0c855c7cffa97480eb5c59b2cc46fbfaaddcc96a37b5f64f57f32c4157ffb85",
-  "source_commit": "0d774a739"
+  "source_commit": "f25f18766"
 }

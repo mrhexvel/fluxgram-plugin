@@ -9,31 +9,45 @@ ResultType = TypeVar("ResultType")
 
 
 class TaskError(RuntimeError):
+    """Base error for lifecycle-managed plugin tasks."""
+
     pass
 
 
 class TaskUnavailableError(TaskError):
+    """Raised when the current runtime does not provide managed tasks."""
+
     pass
 
 
 class TaskInactiveError(TaskError):
+    """Raised when scheduling outside an active plugin generation."""
+
     pass
 
 
 class TaskQueueFullError(TaskError):
+    """Raised when a managed task registry or host queue is full."""
+
     pass
 
 
 class TaskCancelledError(TaskError):
+    """Raised when a cancelled managed task or token is consumed."""
+
     pass
 
 
 @dataclass(frozen=True)
 class TaskResult(Generic[ResultType]):
+    """Immutable value-or-error result for a completed managed task."""
+
     value: ResultType | None = None
     error: BaseException | None = None
 
     def unwrap(self) -> ResultType:
+        """Return the value, or re-raise the captured operation error."""
+
         if self.error is not None:
             raise self.error
 
@@ -52,11 +66,15 @@ class _TaskState:
 
 
 class CancellationToken:
+    """Cooperative cancellation view for a running managed task."""
+
     def __init__(self, state: _TaskState):
         self._state = state
 
     @property
     def cancelled(self) -> bool:
+        """Return whether cancellation or generation invalidation was observed."""
+
         with self._state.lock:
             if self._state.cancelled:
                 return True
@@ -67,11 +85,15 @@ class CancellationToken:
         return not self._state.active()
 
     def throw_if_cancelled(self) -> None:
+        """Raise ``TaskCancelledError`` if cancellation was observed."""
+
         if self.cancelled:
             raise TaskCancelledError("Managed task was cancelled")
 
 
 class TaskHandle(Generic[ResultType]):
+    """Cancelable lifecycle handle for one managed task."""
+
     def __init__(self, owner, task_id: int, periodic: bool):
         self._owner = owner
         self._task_id = task_id
@@ -81,20 +103,28 @@ class TaskHandle(Generic[ResultType]):
 
     @property
     def token(self) -> CancellationToken:
+        """Return the task's cooperative cancellation token."""
+
         return self._token
 
     @property
     def done(self) -> bool:
+        """Return whether the task reached a terminal state."""
+
         with self._state.lock:
             return self._state.done
 
     @property
     def cancelled(self) -> bool:
+        """Return whether the task was cancelled."""
+
         with self._state.lock:
             return self._state.cancelled
 
     @property
     def result(self) -> TaskResult[ResultType]:
+        """Return the completed result or raise if pending or cancelled."""
+
         with self._state.lock:
             if self._state.cancelled:
                 raise TaskCancelledError("Managed task was cancelled")
@@ -105,6 +135,8 @@ class TaskHandle(Generic[ResultType]):
             return self._state.result
 
     def cancel(self) -> bool:
+        """Cancel future work or completion delivery when still possible."""
+
         with self._state.lock:
             if self._state.done and not self._state.completion_pending:
                 return False
@@ -189,6 +221,12 @@ class TasksPort(Protocol):
 
 
 class Tasks:
+    """Schedule bounded work on the plugin's serialized worker executor.
+
+    Handles are owned by the plugin lifecycle and cancelled on unload or
+    generation invalidation. Cancellation is cooperative for running Python.
+    """
+
     MAX_TASKS = 128
     MAX_DELAY_SECONDS = 7 * 24 * 60 * 60
     MIN_PERIOD_SECONDS = 1
@@ -222,6 +260,12 @@ class Tasks:
             *,
             on_complete: Callable[[TaskResult[ResultType]], Any] | None = None,
     ) -> TaskHandle[ResultType]:
+        """Queue an operation for immediate worker execution.
+
+        ``on_complete`` runs later on the same serialized plugin executor while
+        the generation remains active.
+        """
+
         return self._schedule(operation, 0, 0, on_complete=on_complete)
 
     def delay(
@@ -231,6 +275,8 @@ class Tasks:
             *,
             on_complete: Callable[[TaskResult[ResultType]], Any] | None = None,
     ) -> TaskHandle[ResultType]:
+        """Run an operation after a delay of up to seven days."""
+
         return self._schedule(
             operation,
             self._milliseconds(delay, allow_zero=True),
@@ -245,6 +291,13 @@ class Tasks:
             *,
             initial_delay: float | None = None,
     ) -> TaskHandle[Any]:
+        """Run an operation repeatedly with fixed delay between completions.
+
+        The minimum interval is one second. Periodic tasks pause in the
+        background without catch-up and stop permanently when an operation
+        raises.
+        """
+
         interval_ms = self._milliseconds(interval, allow_zero=False)
 
         if interval < self.MIN_PERIOD_SECONDS:
@@ -264,6 +317,8 @@ class Tasks:
             *,
             on_complete: Callable[[TaskResult[ResultType]], Any] | None = None,
     ) -> TaskHandle[ResultType]:
+        """Replace a pending task with the same key and restart its delay."""
+
         key = self._key(key)
 
         with self._key_lock:
@@ -287,6 +342,11 @@ class Tasks:
             *,
             on_complete: Callable[[TaskResult[ResultType]], Any] | None = None,
     ) -> TaskHandle[ResultType]:
+        """Replace pending work for a key without allocating another handle.
+
+        Once the existing operation starts, a new task is scheduled instead.
+        """
+
         key = self._key(key)
 
         with self._key_lock:

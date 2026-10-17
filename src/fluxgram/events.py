@@ -34,11 +34,15 @@ class LegacyEventsPort(Protocol):
 
 
 class ExecutionContext(str, Enum):
+    """Supported execution context for typed event callbacks."""
+
     PLUGIN = "plugin"
 
 
 @dataclass(frozen=True)
 class EventContext:
+    """Immutable account-owner-generation identity captured for an event."""
+
     account: int
     owner_id: int
     generation: int
@@ -56,17 +60,28 @@ class EventContext:
 
 @dataclass(frozen=True)
 class BeforeSendEvent:
+    """Legacy immutable send metadata snapshot without message text."""
+
     account: int
     text_length: int
     schedule_date: int
 
     @property
     def scheduled(self) -> bool:
+        """Return whether the send has a nonzero schedule date."""
+
         return self.schedule_date != 0
 
 
 @dataclass(frozen=True)
 class MessageReceivedEvent:
+    """Immutable snapshot of a newly received ordinary cloud message.
+
+    Typed-channel delivery is observational, bounded, and may be dropped under
+    load. Legacy ``message.received`` and ``notification.received`` callbacks
+    reuse this model on the UI thread and may omit ``context``.
+    """
+
     account: int
     chat: ChatInfo
     message: MessageInfo
@@ -91,23 +106,37 @@ class MessageReceivedEvent:
 
     @property
     def dialog_id(self) -> int:
+        """Return the message dialog ID."""
+
         return self.message.dialog_id
 
     @property
     def message_id(self) -> int:
+        """Return the message ID."""
+
         return self.message.id
 
     @property
     def topic_id(self) -> int:
+        """Return the topic ID, or zero outside a topic."""
+
         return self.message.topic_id
 
     @property
     def text(self) -> str:
+        """Return the message text captured in the snapshot."""
+
         return self.message.text
 
 
 @dataclass(frozen=True)
 class MessageEditedEvent:
+    """Immutable snapshot of a server-confirmed cloud message edit.
+
+    It contains the new state only; previous text and a diff are unavailable.
+    Duplicate delivery after Telegram update replay is possible.
+    """
+
     account: int
     chat: ChatInfo
     message: MessageInfo
@@ -135,23 +164,37 @@ class MessageEditedEvent:
 
     @property
     def dialog_id(self) -> int:
+        """Return the edited message dialog ID."""
+
         return self.message.dialog_id
 
     @property
     def message_id(self) -> int:
+        """Return the edited message ID."""
+
         return self.message.id
 
     @property
     def topic_id(self) -> int:
+        """Return the topic ID, or zero outside a topic."""
+
         return self.message.topic_id
 
     @property
     def text(self) -> str:
+        """Return the edited text captured in the snapshot."""
+
         return self.message.text
 
 
 @dataclass(frozen=True)
 class MessageDeletedEvent:
+    """Immutable IDs-only snapshot of a server deletion update.
+
+    Non-channel updates do not identify a dialog, actor, reason, or message
+    snapshot. Duplicate delivery after update replay is possible.
+    """
+
     context: EventContext
     message_id: int
     channel_id: int | None = None
@@ -169,18 +212,26 @@ class MessageDeletedEvent:
 
     @property
     def account(self) -> int:
+        """Return the captured Telegram account index."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured account owner ID."""
+
         return self.context.owner_id
 
     @property
     def generation(self) -> int:
+        """Return the captured plugin runtime generation."""
+
         return self.context.generation
 
     @property
     def dialog_id(self) -> int | None:
+        """Return the channel dialog ID, or ``None`` when it is unknown."""
+
         if self.channel_id is None:
             return None
 
@@ -189,6 +240,12 @@ class MessageDeletedEvent:
 
 @dataclass(frozen=True)
 class ChatOpenedEvent:
+    """Immutable snapshot emitted when an ordinary cloud chat becomes visible.
+
+    ``presentation_id`` identifies one screen presentation and remains stable
+    across topic changes in that presentation.
+    """
+
     context: EventContext
     presentation_id: int
     dialog_id: int
@@ -209,19 +266,30 @@ class ChatOpenedEvent:
 
     @property
     def account(self) -> int:
+        """Return the captured Telegram account index."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured account owner ID."""
+
         return self.context.owner_id
 
     @property
     def generation(self) -> int:
+        """Return the captured plugin runtime generation."""
+
         return self.context.generation
 
 
 @dataclass(frozen=True)
 class ChatClosedEvent:
+    """Immutable snapshot emitted when an ordinary cloud chat becomes hidden.
+
+    Open and close delivery is bounded, so consumers must not require a pair.
+    """
+
     context: EventContext
     presentation_id: int
     dialog_id: int
@@ -242,19 +310,27 @@ class ChatClosedEvent:
 
     @property
     def account(self) -> int:
+        """Return the captured Telegram account index."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured account owner ID."""
+
         return self.context.owner_id
 
     @property
     def generation(self) -> int:
+        """Return the captured plugin runtime generation."""
+
         return self.context.generation
 
 
 @dataclass(frozen=True)
 class ApplicationForegroundedEvent:
+    """Immutable snapshot of a confirmed application foreground transition."""
+
     context: EventContext
 
     def __post_init__(self):
@@ -263,19 +339,31 @@ class ApplicationForegroundedEvent:
 
     @property
     def account(self) -> int:
+        """Return the account selected when the transition was captured."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured account owner ID."""
+
         return self.context.owner_id
 
     @property
     def generation(self) -> int:
+        """Return the captured plugin runtime generation."""
+
         return self.context.generation
 
 
 @dataclass(frozen=True)
 class ApplicationBackgroundedEvent:
+    """Immutable snapshot of a confirmed application background transition.
+
+    Delivery is delayed to ignore short activity switches and is not guaranteed
+    before process death.
+    """
+
     context: EventContext
 
     def __post_init__(self):
@@ -284,19 +372,27 @@ class ApplicationBackgroundedEvent:
 
     @property
     def account(self) -> int:
+        """Return the account selected when the transition was captured."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured account owner ID."""
+
         return self.context.owner_id
 
     @property
     def generation(self) -> int:
+        """Return the captured plugin runtime generation."""
+
         return self.context.generation
 
 
 @dataclass(frozen=True)
 class PluginSettingChangedEvent:
+    """Immutable snapshot of one validated plugin setting change."""
+
     context: EventContext
     key: str
     value: SettingValue
@@ -313,18 +409,26 @@ class PluginSettingChangedEvent:
 
     @property
     def account(self) -> int:
+        """Return the captured Telegram account index."""
+
         return self.context.account
 
     @property
     def owner_id(self) -> int:
+        """Return the captured account owner ID."""
+
         return self.context.owner_id
 
     @property
     def generation(self) -> int:
+        """Return the captured plugin runtime generation."""
+
         return self.context.generation
 
 
 class EventSubscription:
+    """Lifecycle handle for one typed event subscription."""
+
     def __init__(
             self,
             owner: "Events",
@@ -341,10 +445,14 @@ class EventSubscription:
 
     @property
     def closed(self) -> bool:
+        """Return whether the subscription can no longer receive callbacks."""
+
         with self._lock:
             return self._closed
 
     def unsubscribe(self) -> None:
+        """Remove the subscription and release its callback idempotently."""
+
         with self._lock:
             if self._closed:
                 return
@@ -356,6 +464,8 @@ class EventSubscription:
 
 
 class EventChannel(Generic[EventType]):
+    """Typed source of immutable observational event snapshots."""
+
     def __init__(
             self,
             owner: "Events",
@@ -372,10 +482,23 @@ class EventChannel(Generic[EventType]):
             *,
             context: ExecutionContext = ExecutionContext.PLUGIN,
     ) -> EventSubscription:
+        """Subscribe a callback on the plugin's serialized worker executor.
+
+        Subscriptions are owned by the plugin lifecycle and removed on unload.
+        Only ``ExecutionContext.PLUGIN`` is supported.
+        """
+
         return self._owner._subscribe(self, callback, context)
 
 
 class Events:
+    """Plugin event facade containing typed channels and legacy subscriptions.
+
+    Typed callbacks run serially on the plugin worker executor. Observational
+    delivery uses a bounded queue and may drop new events rather than blocking
+    Telegram threads.
+    """
+
     def __init__(self, legacy_port: LegacyEventsPort):
         self._legacy_port = legacy_port
         self._legacy_closed = False
@@ -450,6 +573,11 @@ class Events:
         self._typed_error_handler = callback
 
     def bind_runtime(self, host: Any, generation: int) -> None:
+        """Bind event delivery to a host generation.
+
+        This host lifecycle operation is not intended for plugin code.
+        """
+
         with self._typed_lock:
             if self._typed_closed or self._typed_host is not None:
                 raise RuntimeError("Plugin event bus is inactive")
@@ -494,6 +622,14 @@ class Events:
             *,
             thread: str = "ui",
     ) -> LegacySubscription:
+        """Subscribe to a supported legacy event.
+
+        Legacy callbacks run synchronously on the UI thread and must remain
+        short. Prefer typed channels for observational work. The separate
+        ``notification.received`` interception contract uses a truthy return
+        value to suppress the matching native notification.
+        """
+
         return self._legacy_port.subscribe(name, callback, thread=thread)
 
     def _subscribe(
@@ -744,6 +880,8 @@ class Events:
                     pass
 
     def close(self) -> None:
+        """Close all typed and legacy subscriptions idempotently."""
+
         with self._typed_lock:
             if self._typed_closed:
                 subscriptions = ()
@@ -815,6 +953,8 @@ class Events:
 
     @property
     def typed_active_count(self) -> int:
+        """Return the number of currently registered typed subscriptions."""
+
         with self._typed_lock:
             return len(self._typed_subscriptions)
 

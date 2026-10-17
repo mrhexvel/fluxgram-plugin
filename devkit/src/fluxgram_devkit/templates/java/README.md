@@ -10,7 +10,7 @@ fluxgram-plugin prepare-ide
 fluxgram-plugin doctor
 ```
 
-Open this directory as a Gradle project in Android Studio or IntelliJ IDEA. The Gradle model provides completion for Android, stable FluxGram Java API 2.0, and the fingerprinted composer host stubs. `fluxgram-plugin build` remains the authoritative package builder.
+Open this directory as a Gradle project in Android Studio or IntelliJ IDEA. The Gradle model provides completion and attached documented sources for stable FluxGram Java API 2.0, plus the fingerprinted composer host stubs. `fluxgram-plugin build` remains the authoritative package builder.
 
 ```sh
 fluxgram-plugin build

@@ -30,6 +30,12 @@ class _PluginData:
 
 
 class HarnessStorageBackend:
+    """In-memory storage shared by one or more plugin harness instances.
+
+    Reusing a backend preserves plugin namespaces across harness generations and
+    allows tests to model account owner changes and cleanup.
+    """
+
     def __init__(
             self,
             *,
@@ -46,6 +52,8 @@ class HarnessStorageBackend:
             is_ui_thread,
             post_ui=lambda callback: callback(),
     ) -> "HarnessStorageSession":
+        """Create a lifecycle session for one plugin storage namespace."""
+
         data = self._plugins.setdefault(plugin_id, _PluginData())
 
         return HarnessStorageSession(
@@ -57,6 +65,8 @@ class HarnessStorageBackend:
         )
 
     def set_owner(self, account: int, owner: int | None) -> None:
+        """Set or remove the simulated owner of an account slot."""
+
         if type(account) is not int or account < 0:
             raise ValueError("account must be a non-negative integer")
 
@@ -70,6 +80,8 @@ class HarnessStorageBackend:
         self._owners[account] = owner
 
     def clear_owner(self, account: int, owner: int) -> None:
+        """Delete account-scoped values and files for one exact owner."""
+
         scope = _Scope("account", account, owner)
 
         for data in self._plugins.values():
@@ -77,10 +89,18 @@ class HarnessStorageBackend:
             data.files.pop(scope, None)
 
     def clear_plugin(self, plugin_id: str) -> None:
+        """Delete all in-memory host-managed data for a plugin ID."""
+
         self._plugins.pop(plugin_id, None)
 
 
 class HarnessStorageSession:
+    """Lifecycle-bound in-memory implementation of the production storage port.
+
+    Direct operations reject simulated UI-thread access. Asynchronous submission
+    is bounded to two outstanding operations and requires explicit ``drain``.
+    """
+
     def __init__(
             self,
             data: _PluginData,
@@ -100,22 +120,30 @@ class HarnessStorageSession:
         self.closed = False
 
     def bind_runtime(self, host: Any, generation: int) -> None:
+        """Bind the session to an active simulated runtime generation."""
+
         if self.closed:
             raise StorageInactiveError("Plugin storage is inactive")
 
         self._is_active = lambda: host.isGenerationActive(generation)
 
     def close(self) -> None:
+        """Close the session and discard queued operations."""
+
         self.closed = True
         self._is_active = lambda: False
         self._pending.clear()
 
     def global_scope(self) -> _Scope:
+        """Return the internal global scope token for this session."""
+
         self._require_available()
 
         return _Scope("global")
 
     def account_scope(self, account: int) -> _Scope:
+        """Capture the current simulated owner of an account scope."""
+
         self._require_available()
         owner = self._owners.get(account)
 
@@ -127,6 +155,8 @@ class HarnessStorageSession:
         return _Scope("account", account, owner)
 
     def read(self, scope: _Scope, key: str) -> _StoredValue | None:
+        """Read a stored value from a validated internal scope."""
+
         self._require_operation(scope)
 
         return self._data.values.get(scope, {}).get(key)
@@ -136,6 +166,8 @@ class HarnessStorageSession:
             operations: tuple[_StorageOperation, ...],
             schema_version: int | None = None,
     ) -> None:
+        """Atomically apply key-value operations and an optional schema version."""
+
         self._require_available()
         scopes = {
             operation.scope
@@ -203,6 +235,8 @@ class HarnessStorageSession:
             self._data.schema_version = schema_version
 
     def statistics(self) -> StorageStatistics:
+        """Return an immutable snapshot of in-memory usage and limits."""
+
         self._require_available()
         values = self._data.values.values()
 
@@ -224,15 +258,21 @@ class HarnessStorageSession:
         )
 
     def file_contains(self, scope: _Scope, path: str) -> bool:
+        """Return whether a private file exists in an internal scope."""
+
         self._require_operation(scope)
         return path in self._data.files.get(scope, {})
 
     def file_read(self, scope: _Scope, path: str) -> bytes | None:
+        """Return a private-file bytes copy or ``None`` when absent."""
+
         self._require_operation(scope)
         value = self._data.files.get(scope, {}).get(path)
         return None if value is None else bytes(value)
 
     def file_write(self, scope: _Scope, path: str, data: bytes) -> None:
+        """Replace a private file after enforcing configured quotas."""
+
         self._require_operation(scope)
 
         if len(data) > self._limits.max_file_bytes:
@@ -262,6 +302,8 @@ class HarnessStorageSession:
         self._data.files = files
 
     def file_delete(self, scope: _Scope, path: str) -> bool:
+        """Delete a private file and return whether it existed."""
+
         self._require_operation(scope)
         current = self._data.files.get(scope)
 
@@ -276,10 +318,14 @@ class HarnessStorageSession:
         return True
 
     def file_clear(self, scope: _Scope) -> None:
+        """Delete all private files in an internal scope."""
+
         self._require_operation(scope)
         self._data.files.pop(scope, None)
 
     def submit(self, callback) -> bool | None:
+        """Queue work, returning ``False`` when full or ``None`` when inactive."""
+
         if self.closed or not self._is_active():
             return None
 
@@ -290,6 +336,8 @@ class HarnessStorageSession:
         return True
 
     def complete(self, callback) -> None:
+        """Post completion to the configured simulated UI queue."""
+
         def run():
             if not self.closed and self._is_active():
                 callback()
@@ -297,6 +345,8 @@ class HarnessStorageSession:
         self._post_ui(run)
 
     def drain(self) -> None:
+        """Run queued storage work until empty outside the simulated UI thread."""
+
         self._require_active()
 
         while self._pending:

@@ -1,4 +1,5 @@
 from pathlib import Path
+import inspect
 import sys
 import tomllib
 import unittest
@@ -90,6 +91,15 @@ class ImportsTest(unittest.TestCase):
             for name in sys.modules
             for prefix in forbidden
         ))
+
+    def test_public_api_definitions_have_hover_documentation(self):
+        for module in (fluxgram, fluxgram.models, fluxgram.testing, fluxgram.ui):
+            for name in module.__all__:
+                value = getattr(module, name)
+
+                if inspect.isclass(value) or inspect.isfunction(value):
+                    with self.subTest(module=module.__name__, name=name):
+                        self.assertIsNotNone(inspect.getdoc(value))
 
 
 if __name__ == "__main__":

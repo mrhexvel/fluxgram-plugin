@@ -16,4 +16,4 @@ Java API 2.0 moves the public ABI to `org.fluxgram`. API 1.x plugins use the for
 
 Direct AliuHook/XposedBridge access remains possible for full-trust Java plugins, but direct registrations are outside FluxGram lifecycle tracking and must retain and close every `Unhook` themselves.
 
-See the [developer kit guide](https://github.com/mrhexvel/fluxgram-plugin/blob/main/docs/developer-kit.md) for requirements, trust boundaries, project format, commands, and testing guidance.
+See the [developer kit guide](https://github.com/mrhexvel/fluxgram-plugin/blob/main/docs/developer-kit.md) for requirements, trust boundaries, project format, commands, and testing guidance. The [API reference](https://github.com/mrhexvel/fluxgram-plugin/blob/main/docs/api-reference.md) indexes the contracts also available through Python and Java editor hover.

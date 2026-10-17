@@ -22,9 +22,15 @@ if (!androidJar.isFile()) {
     throw new GradleException("Android SDK platform 36 was not found at ${androidJar}")
 }
 
+repositories {
+    maven {
+        url = uri(".fluxgram/ide/repository")
+    }
+}
+
 dependencies {
     compileOnly files(androidJar)
-    compileOnly files(".fluxgram/ide/fluxgram-java-api.jar")
+    compileOnly "org.fluxgram:fluxgram-java-api:2.0"
 }
 
 java {

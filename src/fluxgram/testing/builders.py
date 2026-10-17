@@ -24,6 +24,8 @@ def notification_override(
         *,
         mute_until: int | None = None,
 ) -> NotificationOverride:
+    """Build a notification override snapshot for tests."""
+
     return NotificationOverride(mode=mode, mute_until=mute_until)
 
 
@@ -33,6 +35,8 @@ def chat_notifications(
         topic_override: NotificationOverride | None = None,
         effective_muted: bool | None = False,
 ) -> ChatNotifications:
+    """Build a chat notification-state snapshot for tests."""
+
     return ChatNotifications(
         chat_override=chat_override or notification_override(),
         topic_override=topic_override,
@@ -49,6 +53,8 @@ def chat(
         archived: bool | None = False,
         notifications: ChatNotifications | None = None,
 ) -> ChatInfo:
+    """Build an immutable chat snapshot with practical test defaults."""
+
     return ChatInfo(
         id=dialog_id,
         title=title,
@@ -71,6 +77,8 @@ def message(
         is_reply: bool = False,
         silent: bool = False,
 ) -> MessageInfo:
+    """Build an immutable message snapshot with practical test defaults."""
+
     return MessageInfo(
         id=message_id,
         dialog_id=dialog_id,
@@ -93,6 +101,8 @@ def message_received(
         chat_info: ChatInfo | None = None,
         message_info: MessageInfo | None = None,
 ) -> MessageReceivedEvent:
+    """Build a received-message event with consistent chat and message IDs."""
+
     current_message = message_info or message()
     current_chat = chat_info or chat(dialog_id=current_message.dialog_id)
 
@@ -121,6 +131,8 @@ def message_edited(
         chat_info: ChatInfo | None = None,
         message_info: MessageInfo | None = None,
 ) -> MessageEditedEvent:
+    """Build an edited-message event with consistent chat and message IDs."""
+
     current_message = message_info or message()
     current_chat = chat_info or chat(dialog_id=current_message.dialog_id)
 
@@ -149,6 +161,8 @@ def message_deleted(
         channel_id: int | None = None,
         context: EventContext | None = None,
 ) -> MessageDeletedEvent:
+    """Build an IDs-only message deletion event for tests."""
+
     return MessageDeletedEvent(
         context=context or event_context(
             account=account,
@@ -170,6 +184,8 @@ def chat_opened(
         generation: int = 1,
         context: EventContext | None = None,
 ) -> ChatOpenedEvent:
+    """Build a chat-opened lifecycle event for tests."""
+
     return ChatOpenedEvent(
         context=context or event_context(
             account=account,
@@ -192,6 +208,8 @@ def chat_closed(
         generation: int = 1,
         context: EventContext | None = None,
 ) -> ChatClosedEvent:
+    """Build a chat-closed lifecycle event for tests."""
+
     return ChatClosedEvent(
         context=context or event_context(
             account=account,
@@ -211,6 +229,8 @@ def application_foregrounded(
         generation: int = 1,
         context: EventContext | None = None,
 ) -> ApplicationForegroundedEvent:
+    """Build an application-foregrounded event for tests."""
+
     return ApplicationForegroundedEvent(
         context=context or event_context(
             account=account,
@@ -227,6 +247,8 @@ def application_backgrounded(
         generation: int = 1,
         context: EventContext | None = None,
 ) -> ApplicationBackgroundedEvent:
+    """Build an application-backgrounded event for tests."""
+
     return ApplicationBackgroundedEvent(
         context=context or event_context(
             account=account,
@@ -242,6 +264,8 @@ def before_send(
         text_length: int = 0,
         schedule_date: int = 0,
 ) -> BeforeSendEvent:
+    """Build a legacy before-send metadata event for tests."""
+
     return BeforeSendEvent(
         account=account,
         text_length=text_length,
@@ -263,6 +287,8 @@ def outgoing_text_transform(
         generation: int = 1,
         context: EventContext | None = None,
 ) -> OutgoingTextTransformRequest:
+    """Build an outgoing text transform request with captured identity."""
+
     return OutgoingTextTransformRequest(
         context=context or event_context(
             account=account,
@@ -285,6 +311,8 @@ def event_context(
         owner_id: int = 1,
         generation: int = 1,
 ) -> EventContext:
+    """Build an immutable account-owner-generation event context."""
+
     return EventContext(
         account=account,
         owner_id=owner_id,
@@ -298,6 +326,8 @@ def plugin_setting_changed(
         *,
         context: EventContext | None = None,
 ) -> PluginSettingChangedEvent:
+    """Build a typed plugin setting change event for tests."""
+
     return PluginSettingChangedEvent(
         context=context or event_context(),
         key=key,

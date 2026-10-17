@@ -8,6 +8,8 @@ from .transforms import OutgoingTextTransformRequest
 
 @dataclass(frozen=True)
 class CommandInvocation:
+    """Immutable snapshot passed to a matched command handler."""
+
     request: OutgoingTextTransformRequest
     name: str
     invoked_as: str
@@ -27,14 +29,20 @@ class CommandInvocation:
 
     @property
     def account(self) -> int:
+        """Return the Telegram account captured by the send request."""
+
         return self.request.account
 
     @property
     def dialog_id(self) -> int:
+        """Return the destination dialog ID captured by the send request."""
+
         return self.request.dialog_id
 
     @property
     def topic_id(self) -> int:
+        """Return the destination topic ID, or zero outside a topic."""
+
         return self.request.topic_id
 
 
@@ -49,6 +57,8 @@ class _CommandRecord:
 
 
 class CommandRegistration:
+    """Lifecycle handle for one command and its aliases."""
+
     def __init__(self, owner: "Commands", record: _CommandRecord):
         self._owner = owner
         self._record = record
@@ -56,17 +66,25 @@ class CommandRegistration:
 
     @property
     def active(self) -> bool:
+        """Return whether this registration is still dispatchable."""
+
         return self._active and self._owner._is_registered(self._record)
 
     @property
     def name(self) -> str:
+        """Return the normalized primary dot-command name."""
+
         return self._record.name
 
     @property
     def aliases(self) -> tuple[str, ...]:
+        """Return the normalized immutable alias tuple."""
+
         return self._record.aliases
 
     def unregister(self) -> None:
+        """Remove the command registration; repeated calls have no effect."""
+
         if not self._active:
             return
 
@@ -77,6 +95,12 @@ class CommandRegistration:
 
 
 class Commands:
+    """Route exact first-token dot commands for outgoing text transforms.
+
+    Matching is case-insensitive and registrations are automatically removed
+    during plugin unload.
+    """
+
     def __init__(self):
         self._lock = Lock()
         self._records: dict[str, _CommandRecord] = {}
@@ -89,6 +113,12 @@ class Commands:
             *,
             aliases: Iterable[str] = (),
     ) -> CommandRegistration:
+        """Register a command handler and optional aliases.
+
+        Names start with ``.`` and contain at most 31 ASCII characters after
+        normalization. Conflicting triggers are rejected immediately.
+        """
+
         normalized_name = self._normalize(name)
 
         if not callable(handler):
@@ -132,6 +162,8 @@ class Commands:
             *,
             aliases: Iterable[str] = (),
     ) -> Callable[[CommandHandler], CommandHandler]:
+        """Return a decorator that registers a command handler."""
+
         def register(handler: CommandHandler) -> CommandHandler:
             self.register(name, handler, aliases=aliases)
 
@@ -141,6 +173,8 @@ class Commands:
 
     @property
     def active_count(self) -> int:
+        """Return the number of active command registrations."""
+
         with self._lock:
             return len({id(record) for record in self._records.values()})
 

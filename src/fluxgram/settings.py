@@ -57,6 +57,12 @@ def _validate_common(item):
 
 @dataclass(frozen=True)
 class Switch:
+    """Immutable declaration of a boolean plugin setting.
+
+    ``on_changed(plugin, value)`` runs on the plugin worker and replaces, rather
+    than supplements, ``Plugin.on_setting_changed`` for this field.
+    """
+
     key: str
     title: str
     default: bool = False
@@ -74,6 +80,12 @@ class Switch:
 
 @dataclass(frozen=True)
 class Select:
+    """Immutable declaration of a choice setting with 1 to 32 options.
+
+    ``on_changed(plugin, value)`` runs on the plugin worker and replaces, rather
+    than supplements, ``Plugin.on_setting_changed`` for this field.
+    """
+
     key: str
     title: str
     options: tuple[tuple[str, str], ...]
@@ -112,6 +124,12 @@ class Select:
 
 @dataclass(frozen=True)
 class Slider:
+    """Immutable declaration of a bounded integer slider setting.
+
+    ``on_changed(plugin, value)`` runs on the plugin worker and replaces, rather
+    than supplements, ``Plugin.on_setting_changed`` for this field.
+    """
+
     key: str
     title: str
     minimum: int
@@ -145,6 +163,12 @@ class Slider:
 
 @dataclass(frozen=True)
 class Text:
+    """Immutable declaration of a single-line text setting.
+
+    ``on_changed(plugin, value)`` runs on the plugin worker and replaces, rather
+    than supplements, ``Plugin.on_setting_changed`` for this field.
+    """
+
     key: str
     title: str
     default: str = ""
@@ -178,6 +202,8 @@ TextSetting = Text
 
 
 class Settings:
+    """Read-only access to the active plugin's declared settings."""
+
     def __init__(self, schema):
         schema = tuple(schema)
 
@@ -197,6 +223,12 @@ class Settings:
         self._generation = generation
 
     def get(self, key):
+        """Return the validated current value for a declared setting.
+
+        Invalid persisted values fall back to the declaration default. Access
+        outside an active plugin generation raises ``RuntimeError``.
+        """
+
         item = self._schema[key]
 
         if self._host is None or not self._host.isGenerationActive(self._generation):

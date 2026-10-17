@@ -18,6 +18,12 @@ class _PluginState(Enum):
 
 
 class Plugin:
+    """Base class for one lifecycle-managed plugin runtime instance.
+
+    Subclasses declare settings and storage schemas as class attributes. The host
+    creates one instance per active generation and owns all exposed services.
+    """
+
     settings_schema = ()
     storage_schema_version = 0
 
@@ -88,29 +94,67 @@ class Plugin:
 
     @property
     def id(self) -> str:
+        """Return the immutable manifest plugin ID for this runtime."""
+
         return self._plugin_id
 
     def log(self, message: str) -> None:
+        """Write a plugin-attributed message to the client log."""
+
         self._log(self.id, message)
 
     def on_setting_changed(self, key: str, value: bool | str | int) -> None:
+        """Handle a setting change on the plugin worker thread.
+
+        This fallback hook runs only when the setting has no ``on_changed``
+        callback. It is not called for initial values.
+        """
+
         pass
 
     def on_load(self) -> None:
+        """Initialize the plugin on its worker thread after services are bound."""
+
         pass
 
     def on_unload(self) -> None:
+        """Release plugin-owned resources on the worker thread.
+
+        Managed SDK resources are closed first. The hook may be retried if
+        cleanup fails, so implementations should be idempotent.
+        """
+
         pass
 
     @classmethod
     def migrate_storage(cls, migration: StorageMigration) -> None:
+        """Migrate host-managed storage before a runtime instance is created.
+
+        Changes made through ``migration`` commit atomically with the target
+        schema version. Raising aborts the migration and plugin startup.
+        """
+
         pass
 
     def before_send(self, event: BeforeSendEvent) -> None:
+        """Observe legacy send metadata on the plugin worker thread.
+
+        The event contains no message text and this hook cannot cancel or alter
+        the send operation.
+        """
+
         pass
 
     def transform_outgoing_text(
             self,
             request: OutgoingTextTransformRequest,
     ) -> str | None:
+        """Transform an outgoing plain-text send on the plugin worker thread.
+
+        Return a string to replace the text or ``None`` to preserve the current
+        pipeline value. The default implementation dispatches registered
+        commands. The host applies timeout, size, lifecycle, and stale-request
+        fallback checks before using a result.
+        """
+
         return self.commands._dispatch(request)
