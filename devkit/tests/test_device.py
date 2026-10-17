@@ -54,7 +54,6 @@ class DeviceTest(unittest.TestCase):
         runner = FakeRunner([
             b"List of devices attached\nserial-1\tdevice\n",
             b"",
-            b"",
             b"Bundle[{result=started}]",
             json.dumps(result).encode(),
         ])
@@ -65,36 +64,30 @@ class DeviceTest(unittest.TestCase):
             value = install_archive(
                 archive,
                 "serial-1",
-                "org.fluxgram.messenger.beta",
+                "org.fluxgram.messenger",
                 "/tools/adb",
                 "install",
                 True,
                 runner,
             )
 
-        authority = "org.fluxgram.messenger.beta.fluxgram.debug.plugins"
+        authority = "org.fluxgram.messenger.fluxgram.debug.plugins"
         self.assertEqual(value, result)
         self.assertEqual(
-            runner.calls[1][0],
-            ["/tools/adb", "-s", "serial-1", "shell", "run-as",
-             "org.fluxgram.messenger.beta", "true"],
-        )
-        self.assertEqual(
-            runner.calls[2],
+            runner.calls[1],
             (["/tools/adb", "-s", "serial-1", "shell", "content", "write", "--uri",
               f"content://{authority}/archive"], b"archive bytes"),
         )
-        self.assertEqual(runner.calls[3][0][0:8], [
+        self.assertEqual(runner.calls[2][0][0:8], [
             "/tools/adb", "-s", "serial-1", "shell", "content", "call", "--uri",
             f"content://{authority}/control",
         ])
-        self.assertIn("enable:b:true", runner.calls[3][0])
-        self.assertEqual(runner.calls[4][0][-1], f"content://{authority}/result")
+        self.assertIn("enable:b:true", runner.calls[2][0])
+        self.assertEqual(runner.calls[3][0][-1], f"content://{authority}/result")
 
     def test_rejects_malformed_and_failed_device_results(self):
         prefix = [
             b"List of devices attached\nserial-1\tdevice\n",
-            b"",
             b"",
             b"",
         ]
@@ -115,20 +108,34 @@ class DeviceTest(unittest.TestCase):
 
         runner = FakeRunner([
             b"List of devices attached\nserial-1\tdevice\n",
-            (1, b"", b"run-as denied"),
+            (1, b"", b"developer access disabled"),
         ])
 
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "plugin.fgplugin"
             archive.write_bytes(b"archive")
 
-            with self.assertRaisesRegex(DeviceError, "run-as denied"):
+            with self.assertRaisesRegex(DeviceError, "developer access disabled"):
+                install_archive(archive, "serial-1", runner=runner)
+
+    def test_reports_provider_exception_even_when_content_command_succeeds(self):
+        runner = FakeRunner([
+            b"List of devices attached\nserial-1\tdevice\n",
+            (0, b"", b"Error while accessing provider:example\n"
+                b"java.lang.SecurityException: Enable temporary plugin developer access\n"
+                b"\tat android.os.Parcel.readException(Parcel.java:1)\n"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "plugin.fgplugin"
+            archive.write_bytes(b"archive")
+
+            with self.assertRaisesRegex(DeviceError, "Enable temporary plugin developer access"):
                 install_archive(archive, "serial-1", runner=runner)
 
     def test_streams_filtered_plugin_logs(self):
         runner = FakeRunner([
             b"List of devices attached\nserial-1\tdevice\n",
-            b"",
             b"1234\n",
         ], [
             "one [other.plugin] hidden\n",
@@ -145,7 +152,6 @@ class DeviceTest(unittest.TestCase):
     def test_rejects_ambiguous_pid(self):
         runner = FakeRunner([
             b"List of devices attached\nserial-1\tdevice\n",
-            b"",
             b"1234 5678\n",
         ])
 

@@ -81,7 +81,7 @@ fp logs --device SERIAL --plugin ID [--package PACKAGE] [--adb PATH]
 
 Standalone validation catches manifest, archive, digest, compatibility, path, size, duplicate, symlink, DEX version, and entrypoint errors. The FluxGram installer remains the final source of truth and repeats package and DEX validation before installation.
 
-Device commands require exactly the requested online ADB device and successful `run-as` access to the debug package. The default package is `org.fluxgram.messenger.beta`. Install and reload stream archive bytes directly to the debug content provider, trigger the operation by SHA-256, and require a bounded successful JSON result. Reload builds first and requests enable. Logs resolve the current process ID and stream only `FluxGramPython` and `FluxGramDevBridge`; `--plugin` filters local output by `[plugin.id]`.
+Device commands require exactly the requested online ADB device. The default package is the release client, `org.fluxgram.messenger`; pass `--package org.fluxgram.messenger.beta` for a debug installation. In a release client, first enable the temporary 15-minute developer session under FluxGram Settings → Plugins. Install and reload stream archive bytes directly to a `DUMP`-protected shell-only content provider, trigger the operation by SHA-256, and require a bounded successful JSON result. The session is not persisted and ends on expiry, process death, or disabling the plugin system. Reload builds first and requests enable. Logs do not require the developer session: they resolve the current process ID and stream only `FluxGramPython` and `FluxGramDevBridge`; `--plugin` filters local output by `[plugin.id]`.
 
 ## Test Python behavior
 

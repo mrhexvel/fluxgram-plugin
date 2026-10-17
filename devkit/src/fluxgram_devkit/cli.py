@@ -926,7 +926,7 @@ def parser():
 
     for command in device_commands:
         command.add_argument("--device", required=True)
-        command.add_argument("--package", default="org.fluxgram.messenger.beta")
+        command.add_argument("--package", default="org.fluxgram.messenger")
         command.add_argument("--adb", default="adb")
 
     for command in (build, reload_command, doctor_command):

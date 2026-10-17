@@ -30,13 +30,29 @@ def output_text(result):
 
 def run_checked(runner, argv, label, input_data=None):
     result = runner.run(argv, input_data=input_data)
+    message = output_text(result).strip()
+    stderr = result.stderr
+    stderr_message = ""
+
+    if stderr:
+        stderr_message = stderr if isinstance(stderr, str) else stderr.decode("utf-8", "replace")
+        stderr_message = stderr_message.strip()
+
+    provider_message = message if message.startswith("Error while accessing provider:") else stderr_message
+
+    if provider_message.startswith("Error while accessing provider:"):
+        for line in provider_message.splitlines()[1:]:
+            value = line.strip()
+
+            if value.startswith("java.") and ": " in value:
+                provider_message = value.split(": ", 1)[1]
+                break
+
+        raise DeviceError(f"{label} failed: {provider_message}")
 
     if result.returncode != 0:
-        message = output_text(result).strip()
-        stderr = result.stderr
-
-        if not message and stderr:
-            message = stderr if isinstance(stderr, str) else stderr.decode("utf-8", "replace")
+        if not message:
+            message = stderr_message
 
         raise DeviceError(f"{label} failed: {message.strip()}")
 
@@ -68,11 +84,6 @@ def select_device(adb, serial=None, runner=None):
     return devices[0]
 
 
-def verify_run_as(adb, serial, package, runner):
-    run_checked(runner, [adb, "-s", serial, "shell", "run-as", package, "true"],
-                "run-as verification")
-
-
 def parse_result(result):
     data = result.stdout
 
@@ -92,12 +103,11 @@ def parse_result(result):
     return value
 
 
-def install_archive(archive, serial, package="org.fluxgram.messenger.beta", adb="adb",
+def install_archive(archive, serial, package="org.fluxgram.messenger", adb="adb",
                     method="install", enable=False, runner=None):
     require(method in {"install", "reload"}, "Invalid device operation")
     runner = runner or ProcessRunner()
     serial = select_device(adb, serial, runner)
-    verify_run_as(adb, serial, package, runner)
     archive = Path(archive)
     require(archive.is_file(), f"Package does not exist: {archive}")
     data = archive.read_bytes()
@@ -124,11 +134,10 @@ def install_archive(archive, serial, package="org.fluxgram.messenger.beta", adb=
     return parse_result(result)
 
 
-def stream_logs(serial, package="org.fluxgram.messenger.beta", adb="adb", plugin_id=None,
+def stream_logs(serial, package="org.fluxgram.messenger", adb="adb", plugin_id=None,
                 runner=None, output=None):
     runner = runner or ProcessRunner()
     serial = select_device(adb, serial, runner)
-    verify_run_as(adb, serial, package, runner)
     result = run_checked(runner, [adb, "-s", serial, "shell", "pidof", package], "pidof")
     pids = output_text(result).split()
     require(len(pids) == 1 and PID.fullmatch(pids[0]) is not None,

@@ -102,7 +102,7 @@ class DevkitTest(unittest.TestCase):
                     self.assertIn("fluxgram-plugin==2.12.0", requirements)
 
                 requirements = (target / "requirements-dev.txt").read_text()
-                self.assertIn("fluxgram-plugin-devkit==2.1.1", requirements)
+                self.assertIn("fluxgram-plugin-devkit==2.2.0", requirements)
 
                 if "java" in sections:
                     self.assertTrue((target / "build.gradle").is_file())
@@ -131,6 +131,9 @@ class DevkitTest(unittest.TestCase):
 
         arguments = parser().parse_args(["new", "plugin", "--template", "java"])
         self.assertEqual(arguments.template, "java")
+
+        arguments = parser().parse_args(["install", "plugin.fgplugin", "--device", "serial"])
+        self.assertEqual(arguments.package, "org.fluxgram.messenger")
 
         arguments = parser().parse_args(["prepare-ide"])
         self.assertEqual(arguments.project, ".")
