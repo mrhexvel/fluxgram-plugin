@@ -1,0 +1,38 @@
+plugins {
+    id "java-library"
+}
+
+def androidSdk = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME")
+
+if (!androidSdk) {
+    def candidates = [
+            new File(System.getProperty("user.home"), "Library/Android/sdk"),
+            new File(System.getProperty("user.home"), "Android/Sdk"),
+    ]
+    androidSdk = candidates.find { it.isDirectory() }?.absolutePath
+}
+
+if (!androidSdk) {
+    throw new GradleException("Set ANDROID_SDK_ROOT to Android SDK platform 36")
+}
+
+def androidJar = file("${androidSdk}/platforms/android-36/android.jar")
+
+if (!androidJar.isFile()) {
+    throw new GradleException("Android SDK platform 36 was not found at ${androidJar}")
+}
+
+dependencies {
+    compileOnly files(androidJar)
+    compileOnly files(".fluxgram/ide/fluxgram-java-api.jar")
+    compileOnly files(".fluxgram/ide/fluxgram-host-stubs.jar")
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+sourceSets {
+    main.java.srcDirs = ["java/src"]
+}

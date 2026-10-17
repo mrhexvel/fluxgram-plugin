@@ -1,0 +1,7 @@
+.fluxgram/
+.gradle/
+.idea/
+.venv/
+.vscode/
+build/
+dist/

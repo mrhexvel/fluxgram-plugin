@@ -7,5 +7,5 @@ class PluginEntry(Plugin):
         Switch("enabled", "Enabled", default=True, icon="settings"),
     )
 
-    def on_load(self):
+    def on_load(self) -> None:
         self.log("Hello Hybrid Plugin loaded")

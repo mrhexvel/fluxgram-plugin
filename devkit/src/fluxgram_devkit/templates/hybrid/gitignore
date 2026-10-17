@@ -1,0 +1,9 @@
+.fluxgram/
+.gradle/
+.idea/
+.venv/
+.vscode/
+__pycache__/
+build/
+dist/
+*.pyc

@@ -1,0 +1,7 @@
+{
+  "include": ["plugin"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "standard",
+  "venvPath": ".",
+  "venv": ".venv"
+}

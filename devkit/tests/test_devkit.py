@@ -18,6 +18,8 @@ from fluxgram_devkit.cli import (
     inspect_archive,
     load_project,
     parser,
+    prepare_ide,
+    project_schema_artifact,
     zip_bytes,
 )
 
@@ -73,6 +75,25 @@ class DevkitTest(unittest.TestCase):
                 _, config, manifest = load_project(target)
                 self.assertEqual(set(config) & {"python", "java"}, sections)
                 self.assertEqual(manifest["schema_version"], schema)
+                self.assertTrue((target / "README.md").is_file())
+                self.assertTrue((target / ".gitignore").is_file())
+                self.assertFalse((target / "gitignore").exists())
+                self.assertTrue((target / ".fluxgram/ide/fluxgram-plugin.schema.json").is_file())
+
+                if "python" in sections:
+                    self.assertTrue((target / "pyrightconfig.json").is_file())
+                    requirements = (target / "requirements-dev.txt").read_text()
+                    self.assertIn("fluxgram-plugin==2.12.0", requirements)
+
+                if "java" in sections:
+                    self.assertTrue((target / "build.gradle").is_file())
+                    self.assertTrue((target / "settings.gradle").is_file())
+                    self.assertTrue((target / ".fluxgram/ide/fluxgram-java-api.jar").is_file())
+
+                self.assertEqual(
+                    (target / ".fluxgram/ide/fluxgram-host-stubs.jar").is_file(),
+                    template == "java",
+                )
 
             default = root / "default"
             initialize_project(default)
@@ -87,6 +108,29 @@ class DevkitTest(unittest.TestCase):
 
         arguments = parser().parse_args(["new", "plugin", "--template", "java"])
         self.assertEqual(arguments.template, "java")
+
+        arguments = parser().parse_args(["prepare-ide"])
+        self.assertEqual(arguments.project, ".")
+
+    def test_prepare_ide_refreshes_only_required_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "plugin"
+            initialize_project(project, "java")
+            destination = project / ".fluxgram/ide"
+            api, _ = api_artifact()
+            stubs, _ = host_stubs_artifact()
+            schema = project_schema_artifact()
+            (destination / "fluxgram-java-api.jar").write_bytes(b"stale")
+            prepare_ide(project)
+            self.assertEqual((destination / "fluxgram-java-api.jar").read_bytes(), api.read_bytes())
+            self.assertEqual((destination / "fluxgram-host-stubs.jar").read_bytes(), stubs.read_bytes())
+            self.assertEqual((destination / "fluxgram-plugin.schema.json").read_bytes(),
+                             schema.read_bytes())
+
+            config = project / "fluxgram-plugin.toml"
+            config.write_text(config.read_text().replace("host_stubs = true", "host_stubs = false"))
+            prepare_ide(project)
+            self.assertFalse((destination / "fluxgram-host-stubs.jar").exists())
 
     def test_validates_python_package(self):
         with tempfile.TemporaryDirectory() as directory:

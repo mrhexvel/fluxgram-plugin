@@ -1,3 +1,5 @@
+#:schema .fluxgram/ide/fluxgram-plugin.schema.json
+
 [plugin]
 id = "example.hello_python"
 name = "Hello Python Plugin"

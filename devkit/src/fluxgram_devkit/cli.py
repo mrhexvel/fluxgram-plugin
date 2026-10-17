@@ -668,6 +668,53 @@ def host_stubs_artifact():
     return artifact, metadata
 
 
+def project_schema_artifact():
+    artifact = Path(__file__).with_name("artifacts") / "fluxgram-plugin.schema.json"
+    require(artifact.is_file(), "Bundled project schema is missing")
+
+    try:
+        schema = json.loads(artifact.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DevkitError("Invalid bundled project schema") from error
+
+    require(isinstance(schema, dict)
+            and schema.get("$id") == "https://fluxgram.org/schemas/fluxgram-plugin.schema.json",
+            "Invalid bundled project schema")
+    return artifact
+
+
+def write_artifact(source, destination):
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_bytes(source.read_bytes())
+    temporary.replace(destination)
+
+
+def prepare_ide(project_dir):
+    project_dir, config, _ = load_project(project_dir)
+    destination = project_dir / ".fluxgram" / "ide"
+    destination.mkdir(parents=True, exist_ok=True)
+    expected = {"fluxgram-plugin.schema.json"}
+    write_artifact(project_schema_artifact(), destination / "fluxgram-plugin.schema.json")
+
+    if "java" in config:
+        api, _ = api_artifact()
+        write_artifact(api, destination / "fluxgram-java-api.jar")
+        expected.add("fluxgram-java-api.jar")
+
+        if config["java"].get("host_stubs", False):
+            stubs, _ = host_stubs_artifact()
+            write_artifact(stubs, destination / "fluxgram-host-stubs.jar")
+            expected.add("fluxgram-host-stubs.jar")
+
+    for name in ("fluxgram-java-api.jar", "fluxgram-host-stubs.jar"):
+        path = destination / name
+
+        if name not in expected:
+            path.unlink(missing_ok=True)
+
+    return destination
+
+
 def zip_bytes(files):
     output = io.BytesIO()
 
@@ -782,6 +829,18 @@ def initialize_project(destination, template="hybrid"):
     source = Path(__file__).with_name("templates") / template
     require(source.is_dir(), "Bundled project template is missing")
     shutil.copytree(source, destination)
+
+    try:
+        gitignore = destination / "gitignore"
+
+        if gitignore.is_file():
+            gitignore.replace(destination / ".gitignore")
+
+        prepare_ide(destination)
+    except Exception:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+
     return destination
 
 
@@ -808,6 +867,8 @@ def parser():
     new = commands.add_parser("new")
     new.add_argument("destination")
     new.add_argument("--template", choices=TEMPLATES, default="hybrid")
+    prepare = commands.add_parser("prepare-ide")
+    prepare.add_argument("project", nargs="?", default=".")
     build = commands.add_parser("build")
     build.add_argument("project", nargs="?", default=".")
     build.add_argument("--output")
@@ -844,6 +905,8 @@ def main(argv=None):
     try:
         if arguments.command in {"init", "new"}:
             print(initialize_project(arguments.destination, arguments.template))
+        elif arguments.command == "prepare-ide":
+            print(prepare_ide(arguments.project))
         elif arguments.command == "build":
             print(build_project(arguments.project, arguments.output, arguments.java_home,
                                 arguments.android_sdk, arguments.build_tools))

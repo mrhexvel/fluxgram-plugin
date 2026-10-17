@@ -1,3 +1,5 @@
+#:schema .fluxgram/ide/fluxgram-plugin.schema.json
+
 [plugin]
 id = "example.composer_renderer"
 name = "Composer Renderer"

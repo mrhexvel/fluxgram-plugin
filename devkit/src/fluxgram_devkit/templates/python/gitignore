@@ -1,0 +1,7 @@
+.fluxgram/
+.idea/
+.venv/
+.vscode/
+__pycache__/
+dist/
+*.pyc

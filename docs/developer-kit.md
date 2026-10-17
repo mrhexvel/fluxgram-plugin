@@ -34,11 +34,24 @@ fluxgram-plugin doctor
 ```sh
 fluxgram-plugin init hello-plugin --template hybrid
 cd hello-plugin
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
 fluxgram-plugin build
 fluxgram-plugin validate dist/example.hello_hybrid-1.0.0.fgplugin
 ```
 
 Edit `fluxgram-plugin.toml` before publishing. The builder generates `manifest.json`, compiles Java with `--release 8`, creates one minSdk 24 DEX, inserts its SHA-256, and packages only explicitly listed Python files and assets.
+
+Open the generated directory as the editor project. Select `.venv` as the Python interpreter in VS Code or PyCharm. Python and hybrid templates include `pyrightconfig.json`, while Java and hybrid templates include a Gradle compile-only project for Android Studio, IntelliJ IDEA, or a Java language server. `fluxgram-plugin.toml` points to a generated JSON Schema for completion and validation in TOML editors which support schema directives.
+
+Files under `.fluxgram/ide` are generated and ignored. Restore them after cloning or updating the devkit:
+
+```sh
+fluxgram-plugin prepare-ide
+```
+
+The Gradle project exists only to provide the editor classpath and quick Java compilation. `fluxgram-plugin build` remains the authoritative package builder and does not include IDE files or SDK artifacts in `.fgplugin`.
 
 The `python` and `hybrid` templates are stable lifecycle examples. The `java` template is a low-level E5 example using `ui.chat.composer.input.native_draw`; its transform policy remains in the external plugin. Do not add `fluxgram`, `fluxgram.py`, the installed `fluxgram-plugin` SDK, either bundled JAR, `.venv`, build output, or local credentials to the package.
 
@@ -55,6 +68,7 @@ Schema 4 uses the existing root Python `PluginEntry` fields only when `[python]`
 ```sh
 fluxgram-plugin init PATH [--template {python,java,hybrid}]
 fluxgram-plugin new PATH [--template {python,java,hybrid}]
+fluxgram-plugin prepare-ide [PROJECT]
 fluxgram-plugin doctor [--java-home PATH] [--android-sdk PATH] [--build-tools VERSION]
 fluxgram-plugin build [PROJECT] [--output FILE] [--java-home PATH] [--android-sdk PATH] [--build-tools VERSION]
 fluxgram-plugin validate FILE
