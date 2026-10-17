@@ -2,16 +2,16 @@ package org.telegram.messenger.plugins;
 
 import android.graphics.Canvas;
 
-import org.telegram.messenger.plugins.api.ComposerExpandedBounds;
-import org.telegram.messenger.plugins.api.ComposerGeometry;
-import org.telegram.messenger.plugins.api.ComposerInput;
-import org.telegram.messenger.plugins.api.ComposerSendEvent;
-import org.telegram.messenger.plugins.api.ComposerTextClusterCapture;
-import org.telegram.messenger.plugins.api.ComposerTextClusterPresentation;
-import org.telegram.messenger.plugins.api.ComposerTextClusterSelection;
-import org.telegram.messenger.plugins.api.ComposerTextLayoutChange;
-import org.telegram.messenger.plugins.api.JavaPluginContext;
-import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.fluxgram.ComposerExpandedBounds;
+import org.fluxgram.ComposerGeometry;
+import org.fluxgram.ComposerInput;
+import org.fluxgram.ComposerSendEvent;
+import org.fluxgram.ComposerTextClusterCapture;
+import org.fluxgram.ComposerTextClusterPresentation;
+import org.fluxgram.ComposerTextClusterSelection;
+import org.fluxgram.ComposerTextLayoutChange;
+import org.fluxgram.JavaPluginContext;
+import org.fluxgram.JavaPluginUiResource;
 
 public final class ComposerInputRendererExtensions {
     public static final String EXTENSION_ID = "ui.chat.composer.input.native_draw";

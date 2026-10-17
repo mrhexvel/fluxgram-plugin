@@ -1,7 +1,7 @@
 package example.plugin;
 
-import org.telegram.messenger.plugins.api.JavaPluginContext;
-import org.telegram.messenger.plugins.api.JavaPluginModule;
+import org.fluxgram.JavaPluginContext;
+import org.fluxgram.JavaPluginModule;
 
 public final class Module implements JavaPluginModule {
     private JavaPluginContext context;

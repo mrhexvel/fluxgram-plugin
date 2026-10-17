@@ -9,7 +9,7 @@ declared_capabilities = []
 [java]
 sources = ["java/src"]
 entrypoint = "example.plugin.Module"
-min_api_minor = 21
+min_api_minor = 0
 host_stubs = true
 
 [assets]

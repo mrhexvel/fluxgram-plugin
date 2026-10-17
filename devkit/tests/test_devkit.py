@@ -102,8 +102,8 @@ class DevkitTest(unittest.TestCase):
             "path": "java/module.dex",
             "entrypoint": "example.Module",
             "sha256": hashlib.sha256(data).hexdigest(),
-            "api_version": 1,
-            "min_api_minor": 21,
+            "api_version": 2,
+            "min_api_minor": 0,
         }
 
         with tempfile.TemporaryDirectory() as directory:
@@ -140,9 +140,9 @@ class DevkitTest(unittest.TestCase):
             "path": "java/module.dex",
             "entrypoint": "example.Module",
             "sha256": hashlib.sha256(data).hexdigest(),
-            "api_version": 1,
-            "min_api_minor": 21,
-            "host_fingerprint": "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7",
+            "api_version": 2,
+            "min_api_minor": 0,
+            "host_fingerprint": "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b",
         }
 
         with tempfile.TemporaryDirectory() as directory:
@@ -179,7 +179,7 @@ declared_capabilities = []
 [java]
 sources = ["java/src"]
 entrypoint = "example.Module"
-min_api_minor = 21
+min_api_minor = 0
 """
 
         with tempfile.TemporaryDirectory() as directory:
@@ -257,7 +257,7 @@ min_api_minor = 21
     def test_bundled_java_api_artifact_is_valid(self):
         artifact, metadata = api_artifact()
         self.assertTrue(artifact.is_file())
-        self.assertEqual(metadata["api_minor"], 23)
+        self.assertEqual((metadata["api_version"], metadata["api_minor"]), (2, 0))
 
     def test_bundled_host_stubs_are_minimal_and_reproducible(self):
         artifact, metadata = host_stubs_artifact()
@@ -267,10 +267,7 @@ min_api_minor = 21
             hashlib.sha256(source.read_bytes()).hexdigest(),
             metadata["source_sha256"],
         )
-        self.assertEqual(
-            metadata["host_fingerprint"],
-            "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7",
-        )
+        self.assertEqual(metadata["host_fingerprint"], metadata["source_sha256"])
 
         with zipfile.ZipFile(artifact) as archive:
             classes = {name for name in archive.namelist() if name.endswith(".class")}
@@ -316,7 +313,7 @@ min_api_minor = 21
             config = {
                 "sources": ["java/src"],
                 "entrypoint": "example.Module",
-                "min_api_minor": 21,
+                "min_api_minor": 0,
                 "host_stubs": True,
             }
 
@@ -363,22 +360,25 @@ min_api_minor = 21
             self.assertIn("host_fingerprint", manifest["java_module"])
 
     def test_rejects_dex_that_bundles_host_class(self):
-        data = self.dex_fixture("Lorg/telegram/copied/HostClass;")
-        java = {
-            "path": "java/module.dex",
-            "entrypoint": "org.telegram.copied.HostClass",
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "api_version": 1,
-            "min_api_minor": 19,
-        }
-        manifest = self.manifest(schema_version=3, java_module=java)
+        for entrypoint in ("org.telegram.copied.HostClass", "org.fluxgram.HostClass"):
+            with self.subTest(entrypoint=entrypoint):
+                descriptor = "L" + entrypoint.replace(".", "/") + ";"
+                data = self.dex_fixture(descriptor)
+                java = {
+                    "path": "java/module.dex",
+                    "entrypoint": entrypoint,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "api_version": 2,
+                    "min_api_minor": 0,
+                }
+                manifest = self.manifest(schema_version=3, java_module=java)
 
-        with tempfile.TemporaryDirectory() as directory:
-            package = Path(directory) / "plugin.fgplugin"
-            package.write_bytes(self.package(manifest, [("java/module.dex", data)]))
+                with tempfile.TemporaryDirectory() as directory:
+                    package = Path(directory) / "plugin.fgplugin"
+                    package.write_bytes(self.package(manifest, [("java/module.dex", data)]))
 
-            with self.assertRaises(DevkitError):
-                inspect_archive(package)
+                    with self.assertRaises(DevkitError):
+                        inspect_archive(package)
 
 
 if __name__ == "__main__":

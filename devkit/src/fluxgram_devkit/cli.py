@@ -32,7 +32,7 @@ PYTHON_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*:PluginEntry")
 JAVA_ENTRYPOINT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_$]*)+")
 HASH = re.compile(r"[a-f0-9]{64}")
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
-HOST_FINGERPRINT = "3233285c067ebfbf8f076cd2a335acf0e82030425e5387bd7a5dba3a943863c7"
+HOST_FINGERPRINT = "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b"
 TEMPLATES = ("python", "java", "hybrid")
 
 
@@ -229,7 +229,10 @@ def validate_dex(data, java):
 
         require(descriptor.startswith("L") and descriptor.endswith(";"),
                 "Invalid DEX class descriptor")
-        forbidden = ("Lorg/telegram/", "Landroid/", "Ljava/", "Ljavax/", "Ldalvik/", "Lcom/chaquo/")
+        forbidden = (
+            "Lorg/telegram/", "Lorg/fluxgram/", "Landroid/", "Ljava/", "Ljavax/",
+            "Ldalvik/", "Lcom/chaquo/",
+        )
         require(not descriptor.startswith(forbidden), "DEX bundles host/platform classes")
         found |= descriptor == expected
 
@@ -612,7 +615,7 @@ def host_stubs_artifact():
             "Invalid host stubs metadata")
     require(metadata["host_fingerprint"] == HOST_FINGERPRINT,
             "Host stubs fingerprint mismatch")
-    require(metadata["compile_sdk"] == 36 and metadata["stable_api"] == "1.23",
+    require(metadata["compile_sdk"] == 36 and metadata["stable_api"] == "2.0",
             "Host stubs build metadata mismatch")
     require(HASH.fullmatch(metadata["jar_sha256"]) is not None
             and HASH.fullmatch(metadata["source_sha256"]) is not None,
@@ -627,7 +630,7 @@ def host_stubs_artifact():
     contract = metadata["contract"]
     require(contract == {
         "id": "ui.chat.composer.input.native_draw",
-        "version": 3,
+        "version": 4,
         "mode": "replacement",
         "thread": "main",
         "abi": [

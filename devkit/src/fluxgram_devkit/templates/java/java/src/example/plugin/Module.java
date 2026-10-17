@@ -3,9 +3,9 @@ package example.plugin;
 import android.graphics.Canvas;
 
 import org.telegram.messenger.plugins.ComposerInputRendererExtensions;
-import org.telegram.messenger.plugins.api.JavaPluginContext;
-import org.telegram.messenger.plugins.api.JavaPluginModule;
-import org.telegram.messenger.plugins.api.JavaPluginUiResource;
+import org.fluxgram.JavaPluginContext;
+import org.fluxgram.JavaPluginModule;
+import org.fluxgram.JavaPluginUiResource;
 
 public final class Module implements JavaPluginModule {
     private JavaPluginUiResource resource;

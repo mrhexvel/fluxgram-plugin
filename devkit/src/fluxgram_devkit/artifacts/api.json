@@ -1,10 +1,10 @@
 {
-  "api_version": 1,
-  "api_minor": 23,
+  "api_version": 2,
+  "api_minor": 0,
   "min_sdk": 24,
   "compile_sdk": 36,
-  "sha256": "588a4dd556fb0e06f818bea857fd4f687108c424c9f54947f71b2b3247512667",
-  "source_sha256": "d471a0261fad6c7ffb11dd8d7d212fe73e31313de981cb8baa4aecd9cd4f5f74",
-  "host_validator_sha256": "a159f54e3faaa063ab40a8a53e45a1d740b5a1107fc00ff0dac3a744b86c9e13",
-  "source_commit": "7c4243dfa"
+  "sha256": "f5f78c6691c8fbe9d4b1814c4e4b00dbeaf2739c00f36addb50048f1664e9ed3",
+  "source_sha256": "76331ec7890336260a438ad61d2d68ad74f140c17c6e75efc113d16a1fac36ac",
+  "host_validator_sha256": "d0c855c7cffa97480eb5c59b2cc46fbfaaddcc96a37b5f64f57f32c4157ffb85",
+  "source_commit": "0d774a739"
 }
