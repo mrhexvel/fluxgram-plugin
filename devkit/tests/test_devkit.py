@@ -3,7 +3,9 @@ import json
 import os
 from pathlib import Path
 import struct
+import sys
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -26,6 +28,19 @@ from fluxgram_devkit.cli import (
 
 
 class DevkitTest(unittest.TestCase):
+    def test_console_scripts_share_entrypoint(self):
+        project = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+        scripts = project["project"]["scripts"]
+
+        self.assertEqual(scripts["fp"], "fluxgram_devkit.cli:main")
+        self.assertEqual(scripts["fluxgram-plugin"], scripts["fp"])
+
+        with patch.object(sys, "argv", ["fp"]):
+            self.assertEqual(parser().prog, "fp")
+
+        with patch.object(sys, "argv", ["fluxgram-plugin"]):
+            self.assertEqual(parser().prog, "fluxgram-plugin")
+
     @staticmethod
     def dex_fixture(descriptor="Lexample/Module;"):
         encoded = descriptor.encode()
@@ -85,6 +100,9 @@ class DevkitTest(unittest.TestCase):
                     self.assertTrue((target / "pyrightconfig.json").is_file())
                     requirements = (target / "requirements-dev.txt").read_text()
                     self.assertIn("fluxgram-plugin==2.12.0", requirements)
+
+                requirements = (target / "requirements-dev.txt").read_text()
+                self.assertIn("fluxgram-plugin-devkit==2.1.1", requirements)
 
                 if "java" in sections:
                     self.assertTrue((target / "build.gradle").is_file())

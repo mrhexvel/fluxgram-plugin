@@ -13,7 +13,7 @@ python3 -m pip install fluxgram-plugin
 
 The package can be imported on CPython 3.11 or newer for development and static analysis. Runtime services require the Android client and are provided by FluxGram through Chaquopy.
 
-See the [API reference](docs/api-reference.md) for lifecycle, execution-context, storage, task, event, UI, Java hook, and composer contracts. The same behavioral documentation is available in Python hover information and in the Java sources attached by devkit 2.1.0.
+See the [API reference](docs/api-reference.md) for lifecycle, execution-context, storage, task, event, UI, Java hook, and composer contracts. The same behavioral documentation is available in Python hover information and in the Java sources attached by devkit 2.1.0 or newer.
 
 Do not include this package in a `.fgplugin` archive. FluxGram provides the matching SDK at runtime.
 

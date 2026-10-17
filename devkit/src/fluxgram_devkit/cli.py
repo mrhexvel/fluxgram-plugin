@@ -896,7 +896,8 @@ def doctor(java_home=None, android_sdk=None, build_tools=None):
 
 
 def parser():
-    value = argparse.ArgumentParser(prog="fluxgram-plugin")
+    executable = Path(sys.argv[0]).name
+    value = argparse.ArgumentParser(prog="fp" if executable == "fp" else "fluxgram-plugin")
     commands = value.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init")
     init.add_argument("destination")

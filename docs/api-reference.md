@@ -108,7 +108,7 @@ The build-specific `ComposerInputRendererExtensions` contract is separate from s
 
 ## Editor artifacts
 
-`fluxgram-plugin prepare-ide` restores generated files under `.fluxgram/ide`:
+`fp prepare-ide` restores generated files under `.fluxgram/ide`:
 
 - the TOML project schema;
 - a local Maven module containing the stable Java binary and matching sources JAR;

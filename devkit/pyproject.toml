@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fluxgram-plugin-devkit"
-version = "2.1.0"
+version = "2.1.1"
 description = "Build and validate FluxGram plugin packages"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ license = "GPL-2.0-only"
 
 [project.scripts]
 fluxgram-plugin = "fluxgram_devkit.cli:main"
+fp = "fluxgram_devkit.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
