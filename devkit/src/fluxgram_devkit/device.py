@@ -2,8 +2,9 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 
-from .process import ProcessRunner
+from .process import COMMAND_TIMEOUT_SECONDS, ProcessRunner
 
 
 MAX_RESPONSE_BYTES = 64 * 1024
@@ -29,7 +30,19 @@ def output_text(result):
 
 
 def run_checked(runner, argv, label, input_data=None):
-    result = runner.run(argv, input_data=input_data)
+    try:
+        result = runner.run(
+            argv,
+            input_data=input_data,
+            timeout_seconds=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        command = subprocess.list2cmdline([str(item) for item in argv])
+        raise DeviceError(
+            f"{label} timed out after {COMMAND_TIMEOUT_SECONDS} seconds while running: "
+            f"{command}. Check the device connection, restart the ADB server, and retry."
+        ) from error
+
     message = output_text(result).strip()
     stderr = result.stderr
     stderr_message = ""
