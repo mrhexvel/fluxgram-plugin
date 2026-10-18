@@ -55,6 +55,27 @@ Legacy string subscriptions remain available for compatibility but have separate
 
 `Switch`, `Select`, `Slider`, and `Text` define declarative settings. Their legacy `*Setting` names are aliases. Icons use the bounded semantic IDs documented in the package README, not Android resource names.
 
+Every setting accepts `visible` and `enabled`. Each value can be a boolean or a callable receiving an immutable mapping of all current, validated setting values. Conditions are evaluated on the plugin worker when the settings screen is described and after a setting changes. A condition must return `bool`; an exception or invalid result leaves the row visible but disabled and is written to the plugin log.
+
+```python
+settings_schema = (
+    Select(
+        "mode",
+        "Mode",
+        options=(("fixed", "Fixed"), ("custom", "Custom")),
+        default="fixed",
+    ),
+    Slider(
+        "duration",
+        "Duration",
+        minimum=1,
+        maximum=60,
+        default=5,
+        visible=lambda values: values["mode"] == "custom",
+    ),
+)
+```
+
 Chat, message, notification, and event dataclasses are immutable snapshots. A zero `topic_id` means the root dialog; nullable fields represent information the host could not reliably provide.
 
 ### UI services

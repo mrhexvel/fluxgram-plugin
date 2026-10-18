@@ -35,13 +35,13 @@ class ImportsTest(unittest.TestCase):
     def test_distribution_metadata(self):
         metadata = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
         self.assertEqual(metadata["project"]["name"], "fluxgram-plugin")
-        self.assertEqual(metadata["project"]["version"], "2.12.0")
+        self.assertEqual(metadata["project"]["version"], "2.13.0")
         self.assertEqual(metadata["project"]["urls"]["Repository"],
                          "https://github.com/mrhexvel/fluxgram-plugin")
 
     def test_public_api_imports_without_client_runtime(self):
         self.assertEqual(fluxgram.API_VERSION, 2)
-        self.assertEqual(fluxgram.API_MINOR_VERSION, 11)
+        self.assertEqual(fluxgram.API_MINOR_VERSION, 12)
         self.assertIs(
             fluxgram.OutgoingTextTransformRequest,
             OutgoingTextTransformRequest,

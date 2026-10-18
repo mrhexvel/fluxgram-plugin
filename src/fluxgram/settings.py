@@ -1,6 +1,7 @@
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable
+from types import MappingProxyType
 
 
 _SETTING_ICONS = frozenset((
@@ -54,6 +55,12 @@ def _validate_common(item):
     if not isinstance(item.icon, str) or item.icon and item.icon not in _SETTING_ICONS:
         raise ValueError("Invalid setting icon")
 
+    for name in ("visible", "enabled"):
+        condition = getattr(item, name)
+
+        if type(condition) is not bool and not callable(condition):
+            raise TypeError(f"Setting {name} must be a boolean or callable")
+
 
 @dataclass(frozen=True)
 class Switch:
@@ -70,6 +77,8 @@ class Switch:
     label: str = ""
     on_changed: Callable | None = None
     icon: str = ""
+    visible: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
+    enabled: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
 
     def __post_init__(self):
         _validate_common(self)
@@ -94,6 +103,8 @@ class Select:
     label: str = ""
     on_changed: Callable | None = None
     icon: str = ""
+    visible: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
+    enabled: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
 
     def __post_init__(self):
         _validate_common(self)
@@ -141,6 +152,8 @@ class Slider:
     label: str = ""
     on_changed: Callable | None = None
     icon: str = ""
+    visible: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
+    enabled: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
 
     def __post_init__(self):
         _validate_common(self)
@@ -178,6 +191,8 @@ class Text:
     label: str = ""
     on_changed: Callable | None = None
     icon: str = ""
+    visible: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
+    enabled: bool | Callable[[Mapping[str, bool | str | int]], bool] = True
 
     def __post_init__(self):
         _validate_common(self)
@@ -217,10 +232,14 @@ class Settings:
 
         self._host = None
         self._generation = None
+        self._condition_error = None
 
     def _bind_runtime(self, host, generation):
         self._host = host
         self._generation = generation
+
+    def _set_condition_error_handler(self, handler):
+        self._condition_error = handler
 
     def get(self, key):
         """Return the validated current value for a declared setting.
@@ -234,6 +253,9 @@ class Settings:
         if self._host is None or not self._host.isGenerationActive(self._generation):
             raise RuntimeError("Plugin settings are inactive")
 
+        return self._read(item)
+
+    def _read(self, item):
         if isinstance(item, Switch):
             return bool(self._host.readBooleanSetting(item.key, item.default))
 
@@ -252,6 +274,28 @@ class Settings:
 
         return value
 
+    def _condition(self, item, name, values):
+        condition = getattr(item, name)
+
+        if type(condition) is bool:
+            return condition, False
+
+        try:
+            result = condition(values)
+
+            if type(result) is not bool:
+                raise TypeError("condition must return a boolean")
+
+            return result, False
+        except BaseException as error:
+            if self._condition_error is not None:
+                try:
+                    self._condition_error(item.key, name, error)
+                except BaseException:
+                    pass
+
+            return name == "visible", True
+
     def _dispatch_changed(self, plugin, key, value):
         item = self._schema[key]
 
@@ -264,11 +308,23 @@ class Settings:
             plugin.on_setting_changed(key, value)
 
     def _describe(self):
+        if self._host is not None and not self._host.isGenerationActive(self._generation):
+            raise RuntimeError("Plugin settings are inactive")
+
         result = []
+        if self._host is None:
+            current = {item.key: item.default for item in self._schema.values()}
+        else:
+            current = {item.key: self._read(item) for item in self._schema.values()}
+        values = MappingProxyType(current)
 
         for item in self._schema.values():
+            visible, visible_failed = self._condition(item, "visible", values)
+            enabled, enabled_failed = self._condition(item, "enabled", values)
             data = {"key": item.key, "title": item.title, "default": item.default,
-                    "description": item.description, "label": item.label.strip()}
+                    "description": item.description, "label": item.label.strip(),
+                    "visible": visible, "enabled": enabled and not visible_failed and not enabled_failed,
+                    "dynamic": callable(item.visible) or callable(item.enabled)}
 
             if item.icon:
                 data["icon"] = item.icon

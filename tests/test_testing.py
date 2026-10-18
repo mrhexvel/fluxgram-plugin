@@ -129,7 +129,44 @@ class InvalidTransformPlugin(Plugin):
         return 7
 
 
+class DynamicSettingsPlugin(Plugin):
+    settings_schema = (
+        Select(
+            "mode",
+            "Mode",
+            options=(("fixed", "Fixed"), ("custom", "Custom")),
+            default="fixed",
+            label="Display",
+        ),
+        Slider(
+            "duration",
+            "Duration",
+            minimum=1,
+            maximum=10,
+            default=5,
+            visible=lambda values: values["mode"] == "custom",
+        ),
+        Text(
+            "caption",
+            "Caption",
+            enabled=lambda values: values["mode"] == "custom",
+        ),
+    )
+
+
 class TestingTest(unittest.TestCase):
+    def test_dynamic_settings_refresh_after_change(self):
+        with PluginHarness(DynamicSettingsPlugin) as harness:
+            initial = {item["key"]: item for item in harness.settings.schema}
+            self.assertFalse(initial["duration"]["visible"])
+            self.assertFalse(initial["caption"]["enabled"])
+
+            harness.settings.set("mode", "custom")
+
+            refreshed = {item["key"]: item for item in harness.settings.schema}
+            self.assertTrue(refreshed["duration"]["visible"])
+            self.assertTrue(refreshed["caption"]["enabled"])
+
     def test_builders_return_public_models(self):
         override = notification_override("until", mute_until=100)
         notifications = chat_notifications(

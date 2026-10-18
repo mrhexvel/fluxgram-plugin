@@ -99,10 +99,10 @@ class DevkitTest(unittest.TestCase):
                 if "python" in sections:
                     self.assertTrue((target / "pyrightconfig.json").is_file())
                     requirements = (target / "requirements-dev.txt").read_text()
-                    self.assertIn("fluxgram-plugin==2.12.0", requirements)
+                    self.assertIn("fluxgram-plugin==2.13.0", requirements)
 
                 requirements = (target / "requirements-dev.txt").read_text()
-                self.assertIn("fluxgram-plugin-devkit==2.2.1", requirements)
+                self.assertIn("fluxgram-plugin-devkit==2.3.0", requirements)
 
                 if "java" in sections:
                     self.assertTrue((target / "build.gradle").is_file())
@@ -271,7 +271,7 @@ min_api_minor = 0
     def test_rejects_newer_sdk_and_bundled_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
             package = Path(directory) / "plugin.fgplugin"
-            package.write_bytes(self.package(self.manifest(min_sdk_minor=12)))
+            package.write_bytes(self.package(self.manifest(min_sdk_minor=13)))
 
             with self.assertRaises(DevkitError):
                 inspect_archive(package)

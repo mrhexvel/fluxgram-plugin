@@ -8,7 +8,7 @@ on:
       tag:
         description: GitHub release tag to publish
         required: true
-        default: v2.12.0
+        default: v2.13.0
 
 permissions:
   contents: read

@@ -73,7 +73,7 @@ from .models import (
 from .transforms import OutgoingTextTransformRequest
 
 API_VERSION = 2
-API_MINOR_VERSION = 11
+API_MINOR_VERSION = 12
 
 __all__ = [
     "Plugin",

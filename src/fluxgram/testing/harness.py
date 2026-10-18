@@ -483,12 +483,19 @@ class HarnessSettings:
         self._harness = harness
         self._values = values
         self._pending = OrderedDict()
+        self._schema = ()
 
     @property
     def values(self) -> dict[str, Any]:
         """Return a detached copy of persisted test setting values."""
 
         return dict(self._values)
+
+    @property
+    def schema(self) -> tuple[dict[str, Any], ...]:
+        """Return the latest detached settings presentation snapshot."""
+
+        return tuple(dict(item) for item in self._schema)
 
     def get(self, key: str) -> Any:
         """Read a setting through the plugin's production settings facade."""
@@ -543,16 +550,24 @@ class HarnessSettings:
             )
 
     def _dispatch(self, key, value, context) -> None:
-        event = PluginSettingChangedEvent(
-            context=context,
-            key=key,
-            value=value,
-        )
-        self._harness.plugin.events._dispatch(event)
-        self._harness.plugin.settings._dispatch_changed(
-            self._harness.plugin,
-            key,
-            value,
+        try:
+            event = PluginSettingChangedEvent(
+                context=context,
+                key=key,
+                value=value,
+            )
+            self._harness.plugin.events._dispatch(event)
+            self._harness.plugin.settings._dispatch_changed(
+                self._harness.plugin,
+                key,
+                value,
+            )
+        finally:
+            self._refresh()
+
+    def _refresh(self) -> None:
+        self._schema = tuple(
+            dict(item) for item in self._harness.plugin.settings._describe()
         )
 
     def clear_pending(self) -> None:
@@ -660,6 +675,7 @@ class PluginHarness(Generic[PluginType]):
 
             self.settings = HarnessSettings(self, self._values)
             self.plugin._bind_runtime(self._host, self.generation)
+            self.run_worker(self.settings._refresh)
             self.run_worker(self.plugin.on_load)
         except BaseException as error:
             self._host.invalidate()

@@ -76,6 +76,24 @@ Settings support the optional semantic icons `adjustments`, `auto_delete`, `blur
 and `zoom_in`. The legacy `SwitchSetting`, `SelectSetting`, `SliderSetting`, and
 `TextSetting` names remain aliases for existing plugins.
 
+Each setting also accepts `visible` and `enabled` as either booleans or callables.
+Callables receive an immutable mapping containing all current validated setting values:
+
+```python
+Slider(
+    "duration",
+    "Duration",
+    minimum=1,
+    maximum=60,
+    default=5,
+    visible=lambda values: values["duration_mode"] == "custom",
+)
+```
+
+Conditions run on the plugin worker whenever the settings presentation is refreshed.
+They must return `bool` and should be quick and side-effect free. If a condition fails,
+FluxGram keeps the row visible but disables it and writes the failure to the plugin log.
+
 ## Outgoing text transforms
 
 Host SDK 2.11 lets one hook per Python plugin transform ordinary text submitted

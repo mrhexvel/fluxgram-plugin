@@ -34,6 +34,12 @@ class Plugin:
         self._call_ui = runtime.call_ui
         self._log = runtime.log
         self.settings = Settings(self.settings_schema)
+        self.settings._set_condition_error_handler(
+            lambda key, name, error: self.log(
+                f"Setting {key} {name} condition failed: "
+                f"{type(error).__name__}: {str(error)[:160]}"
+            )
+        )
         self.commands = Commands()
         self.events = Events(runtime.events)
         self.events._set_error_handler(

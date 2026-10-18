@@ -1,1 +1,1 @@
-fluxgram-plugin-devkit==2.2.1
+fluxgram-plugin-devkit==2.3.0
