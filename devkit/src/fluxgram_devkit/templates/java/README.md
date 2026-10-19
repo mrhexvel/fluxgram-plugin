@@ -10,7 +10,7 @@ fp prepare-ide
 fp doctor
 ```
 
-Open this directory as a Gradle project in Android Studio or IntelliJ IDEA. The Gradle model provides completion and attached documented sources for stable FluxGram Java API 2.0, plus the fingerprinted composer host stubs. `fp build` remains the authoritative package builder.
+Open this directory as a Gradle project in Android Studio or IntelliJ IDEA. The Gradle model provides completion and attached documented sources for stable FluxGram Java API 2.1, plus the fingerprinted composer host stubs. `fp build` remains the authoritative package builder.
 
 ```sh
 fp build

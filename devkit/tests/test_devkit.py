@@ -102,16 +102,16 @@ class DevkitTest(unittest.TestCase):
                     self.assertIn("fluxgram-plugin==2.13.0", requirements)
 
                 requirements = (target / "requirements-dev.txt").read_text()
-                self.assertIn("fluxgram-plugin-devkit==2.3.0", requirements)
+                self.assertIn("fluxgram-plugin-devkit==2.4.0", requirements)
 
                 if "java" in sections:
                     self.assertTrue((target / "build.gradle").is_file())
                     self.assertTrue((target / "settings.gradle").is_file())
                     module = (target / ".fluxgram/ide/repository/org/fluxgram/"
-                              "fluxgram-java-api/2.0")
-                    self.assertTrue((module / "fluxgram-java-api-2.0.jar").is_file())
-                    self.assertTrue((module / "fluxgram-java-api-2.0-sources.jar").is_file())
-                    self.assertTrue((module / "fluxgram-java-api-2.0.pom").is_file())
+                               "fluxgram-java-api/2.1")
+                    self.assertTrue((module / "fluxgram-java-api-2.1.jar").is_file())
+                    self.assertTrue((module / "fluxgram-java-api-2.1-sources.jar").is_file())
+                    self.assertTrue((module / "fluxgram-java-api-2.1.pom").is_file())
 
                 self.assertEqual(
                     (target / ".fluxgram/ide/fluxgram-host-stubs.jar").is_file(),
@@ -147,15 +147,15 @@ class DevkitTest(unittest.TestCase):
             sources = api_sources_artifact()
             stubs, _ = host_stubs_artifact()
             schema = project_schema_artifact()
-            module = destination / "repository/org/fluxgram/fluxgram-java-api/2.0"
-            (module / "fluxgram-java-api-2.0.jar").write_bytes(b"stale")
-            (module / "fluxgram-java-api-2.0-sources.jar").write_bytes(b"stale")
+            module = destination / "repository/org/fluxgram/fluxgram-java-api/2.1"
+            (module / "fluxgram-java-api-2.1.jar").write_bytes(b"stale")
+            (module / "fluxgram-java-api-2.1-sources.jar").write_bytes(b"stale")
             prepare_ide(project)
-            self.assertEqual((module / "fluxgram-java-api-2.0.jar").read_bytes(), api.read_bytes())
-            self.assertEqual((module / "fluxgram-java-api-2.0-sources.jar").read_bytes(),
+            self.assertEqual((module / "fluxgram-java-api-2.1.jar").read_bytes(), api.read_bytes())
+            self.assertEqual((module / "fluxgram-java-api-2.1-sources.jar").read_bytes(),
                              sources.read_bytes())
             self.assertIn("<artifactId>fluxgram-java-api</artifactId>",
-                          (module / "fluxgram-java-api-2.0.pom").read_text())
+                          (module / "fluxgram-java-api-2.1.pom").read_text())
             self.assertEqual((destination / "fluxgram-host-stubs.jar").read_bytes(), stubs.read_bytes())
             self.assertEqual((destination / "fluxgram-plugin.schema.json").read_bytes(),
                              schema.read_bytes())
@@ -336,7 +336,7 @@ min_api_minor = 0
         sources = api_sources_artifact()
         self.assertTrue(artifact.is_file())
         self.assertTrue(sources.is_file())
-        self.assertEqual((metadata["api_version"], metadata["api_minor"]), (2, 0))
+        self.assertEqual((metadata["api_version"], metadata["api_minor"]), (2, 1))
         self.assertEqual(hashlib.sha256(sources.read_bytes()).hexdigest(),
                          metadata["sources_jar_sha256"])
 

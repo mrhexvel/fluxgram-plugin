@@ -96,13 +96,17 @@ UI services validate main-thread access and register their resources for cleanup
 
 `fluxgram.testing.PluginHarness` constructs the same public models and facades on regular CPython without Android. It provides deterministic event delivery, UI calls, storage persistence, owner changes, generation invalidation, fake time, and cleanup assertions.
 
-## Java API 2.0
+## Java API 2.1
 
 ### Lifecycle and resources
 
 Implement `org.fluxgram.JavaPluginModule`. `onLoad()` receives a generation-scoped `JavaPluginContext`; `onUnload()` must release direct plugin-owned resources and may be retried after failure.
 
 Use `registerResource()` and `registerUiResource()` for host-managed cleanup. Worker resources close in reverse registration order. UI factories and cleanup run on the main thread without blocking the worker.
+
+### Settings blocks
+
+`registerSettingsBlock()` appends a plugin-owned custom Android `View` to the plugin settings page. Its factory creates one `JavaSettingsBlock` per open screen on the main thread. The host owns placement, an optional label outside the section card, generation and screen lifecycle, detach, and cleanup retry. `JavaSettingsBlockContext` exposes the screen context, current Telegram semantic colors, lifecycle state, and bounded non-blocking `postAction()` delivery to the plugin worker. A block may freely manage its own child views and local UI interactions, but worker actions must not mutate views directly.
 
 ### Method hooks
 
@@ -125,7 +129,7 @@ Composer registrations create one effect instance per eligible composer surface.
 - `requestFrame()` is demand-driven and can be coalesced. Continuous animation is bounded by the host.
 - Selection decoration is additive; content, cursor, and native-text presentations have their own exclusivity rules.
 
-The build-specific `ComposerInputRendererExtensions` contract is separate from stable Java API 2.0. Its exact host fingerprint is required by schema 5 packages.
+The build-specific `ComposerInputRendererExtensions` contract is separate from stable Java API 2.1. Its exact host fingerprint is required by schema 5 packages.
 
 ## Editor artifacts
 

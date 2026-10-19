@@ -1,7 +1,7 @@
 {
   "host_fingerprint": "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b",
   "compile_sdk": 36,
-  "stable_api": "2.0",
+  "stable_api": "2.1",
   "jar_sha256": "790b87ee521c1887e91d6576d9a09bfa487791b546dad6b0f6bb12600a32916b",
   "source_sha256": "f2ff60d61f95bb4c1587fecde7d32978e38bbd8c4e3aec2b8d0a9bcdd7e98e6b",
   "contract": {
